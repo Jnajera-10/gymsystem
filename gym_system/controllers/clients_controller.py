@@ -57,6 +57,11 @@ class ClientsController:
             db.session.add(client)
             db.session.commit()
             AuditService.log('create', 'clients', client.id, None, client.full_name)
+            try:
+                from services.notification_service import NotificationService
+                NotificationService.send_welcome(client)
+            except Exception:
+                pass
             flash('Cliente registrado exitosamente.', 'success')
             return redirect(url_for('clients.index'))
         return render_template('clients/create_client.html')

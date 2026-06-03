@@ -39,9 +39,10 @@ class PaymentService:
     @staticmethod
     def month_income():
         now = datetime.now(BOGOTA)
+        from sqlalchemy import extract
         payments = Payment.query.filter(
-            db.extract('month', Payment.payment_date) == now.month,
-            db.extract('year', Payment.payment_date) == now.year,
+            extract('month', Payment.payment_date) == now.month,
+            extract('year', Payment.payment_date) == now.year,
             Payment.is_deleted == False
         ).all()
         return sum(p.amount for p in payments)

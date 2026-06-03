@@ -5,6 +5,7 @@ from database.models.attendance import Attendance
 from database.models.inventory import Product
 from database.models.sales import Sale
 from services.membership_service import MembershipService
+from services.payment_service import PaymentService
 import pytz
 from datetime import datetime
 

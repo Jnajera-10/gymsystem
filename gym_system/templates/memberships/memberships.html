@@ -1,6 +1,35 @@
 {% extends "layouts/base.html" %}
-{% block title %}Módulo - GymSystem{% endblock %}
+{% block title %}Membresías{% endblock %}
 {% block content %}
-<h4>Módulo</h4>
-<p class="text-muted">Disponible.</p>
+<div class="d-flex justify-content-between align-items-center mb-4">
+    <h4><i class="fas fa-id-card me-2"></i>Membresías</h4>
+    <a href="{{ url_for('membership.create') }}" class="btn btn-primary"><i class="fas fa-plus me-1"></i>Nueva Membresía</a>
+</div>
+<div class="card shadow-sm">
+    <div class="card-body p-0">
+        <table class="table table-hover mb-0">
+            <thead class="table-dark">
+                <tr><th>Nombre</th><th>Duración</th><th>Precio</th><th>Estado</th><th>Acciones</th></tr>
+            </thead>
+            <tbody>
+                {% for m in memberships %}
+                <tr>
+                    <td>{{ m.name }}</td>
+                    <td>{{ m.duration_days }} días</td>
+                    <td>${{ '{:,.0f}'.format(m.price) }}</td>
+                    <td><span class="badge bg-{{ 'success' if m.is_active else 'secondary' }}">{{ 'Activa' if m.is_active else 'Inactiva' }}</span></td>
+                    <td>
+                        <a href="{{ url_for('membership.edit', mid=m.id) }}" class="btn btn-sm btn-outline-secondary">Editar</a>
+                        <form method="POST" action="{{ url_for('membership.delete', mid=m.id) }}" class="d-inline" onsubmit="return confirm('¿Desactivar?')">
+                            <button class="btn btn-sm btn-outline-danger">Desactivar</button>
+                        </form>
+                    </td>
+                </tr>
+                {% else %}
+                <tr><td colspan="5" class="text-center text-muted py-4">No hay membresías registradas.</td></tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+</div>
 {% endblock %}

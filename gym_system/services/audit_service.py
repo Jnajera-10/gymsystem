@@ -1,11 +1,14 @@
 from database.models.audit import AuditLog
 from database.db import db
-from flask import session
 
 class AuditService:
     @staticmethod
     def log(action, table_name, record_id, old_value=None, new_value=None):
-        user_id = session.get('user_id')
+        try:
+            from flask import session
+            user_id = session.get('user_id')
+        except:
+            user_id = None
         log = AuditLog(
             user_id=user_id,
             action=action,

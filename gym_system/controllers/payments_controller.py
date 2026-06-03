@@ -5,12 +5,14 @@ from database.models.membership import Membership
 from database.db import db
 from services.payment_service import PaymentService
 from services.audit_service import AuditService
-
+import logging
+ 
+logger = logging.getLogger(__name__)
 PER_PAGE = 30
-
-
+ 
+ 
 class PaymentsController:
-
+ 
     @staticmethod
     def index():
         page = request.args.get('page', 1, type=int)
@@ -25,7 +27,7 @@ class PaymentsController:
             payments=pagination.items,
             pagination=pagination,
         )
-
+ 
     @staticmethod
     def create():
         clients = Client.query.filter_by(is_active=True).order_by(Client.full_name).all()
@@ -34,12 +36,15 @@ class PaymentsController:
             payment = PaymentService.register_payment(request.form)
             if payment:
                 AuditService.log('create', 'payments', payment.id, None, str(payment.amount))
-                # Enviar confirmación de pago por email
                 try:
                     from services.notification_service import NotificationService
-                    NotificationService.send_payment_confirmation(payment)
-                except Exception:
-                    pass
+                    ok = NotificationService.send_payment_confirmation(payment)
+                    if not ok:
+                        flash('⚠️ Pago registrado, pero no se pudo enviar el email de confirmación. '
+                              'Revisa las variables de entorno MAIL_* en Render.', 'warning')
+                except Exception as exc:
+                    logger.error(f'Error enviando email de pago: {exc}')
+                    flash(f'⚠️ Pago registrado, pero error al enviar email: {exc}', 'warning')
                 flash('Pago registrado correctamente.', 'success')
                 return redirect(url_for('payments.receipt', payment_id=payment.id))
             flash('No se pudo registrar el pago.', 'danger')
@@ -48,12 +53,12 @@ class PaymentsController:
             clients=clients,
             memberships=memberships,
         )
-
+ 
     @staticmethod
     def receipt(payment_id):
         payment = Payment.query.get_or_404(payment_id)
         return render_template('payments/receipt.html', payment=payment)
-
+ 
     @staticmethod
     def delete(payment_id):
         payment = Payment.query.get_or_404(payment_id)

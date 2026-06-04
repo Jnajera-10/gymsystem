@@ -21,12 +21,12 @@ def _send_brevo(to_email: str, subject: str, html_body: str) -> tuple[bool, str]
 
     if not api_key:
         msg = 'BREVO_API_KEY vacía en variables de entorno.'
-        logger.error(f'[EMAIL] {msg}')
+        print("[LOG-ERROR]", f'[EMAIL] {msg}')
         return False, msg
 
     if not mail_from:
         msg = 'MAIL_FROM vacío en variables de entorno.'
-        logger.error(f'[EMAIL] {msg}')
+        print("[LOG-ERROR]", f'[EMAIL] {msg}')
         return False, msg
 
     payload = {
@@ -47,15 +47,15 @@ def _send_brevo(to_email: str, subject: str, html_body: str) -> tuple[bool, str]
             timeout=15,
         )
         if response.status_code in (200, 201):
-            logger.info(f'[EMAIL OK] {subject} → {to_email}')
+            print("[LOG-INFO]", f'[EMAIL OK] {subject} → {to_email}')
             return True, ''
         else:
             err = response.text[:200]
-            logger.error(f'[EMAIL ERROR] {response.status_code} → {err}')
+            print("[LOG-ERROR]", f'[EMAIL ERROR] {response.status_code} → {err}')
             return False, err
     except Exception as exc:
         err = str(exc)[:200]
-        logger.error(f'[EMAIL ERROR] {subject} → {to_email}: {err}')
+        print("[LOG-ERROR]", f'[EMAIL ERROR] {subject} → {to_email}: {err}')
         return False, err
 
 
@@ -72,7 +72,7 @@ def _log_notification(client_id, channel, message, success, error=''):
         db.session.add(notif)
         db.session.commit()
     except Exception as exc:
-        logger.error(f'[EMAIL LOG] No se pudo guardar notificación en BD: {exc}')
+        print("[LOG-ERROR]", f'[EMAIL LOG] No se pudo guardar notificación en BD: {exc}')
         try:
             db.session.rollback()
         except Exception:

@@ -1,84 +1,67 @@
 import os
-import ssl
-import smtplib
+import requests
 import logging
-from email.mime.text import MIMEText
-from email.mime.multipart import MIMEMultipart
 from database.models.notifications import Notification
 from database.db import db
 import pytz
 from datetime import datetime
- 
+
 BOGOTA = pytz.timezone('America/Bogota')
 logger = logging.getLogger(__name__)
- 
- 
-def _send_smtp(to_email: str, subject: str, html_body: str) -> tuple[bool, str]:
+
+
+def _send_brevo(to_email: str, subject: str, html_body: str) -> tuple[bool, str]:
     """
-    Envía email por SMTP leyendo las variables de entorno en cada llamada
-    (no al importar el módulo) para que Render las inyecte correctamente.
-    
-    Soporta dos modos según MAIL_USE_SSL:
-      - False (default): puerto 587 con STARTTLS  → outlook.com / office365
-      - True:            puerto 465 con SSL directo → Gmail y otros
+    Envía email usando la API HTTP de Brevo (antes Sendinblue).
+    Funciona desde Render free porque usa HTTPS, no SMTP.
     """
-    mail_server = os.environ.get('MAIL_SERVER', 'smtp.office365.com')
-    mail_port   = int(os.environ.get('MAIL_PORT', 587))
-    mail_user   = os.environ.get('MAIL_USERNAME', '').strip()
-    mail_pass   = os.environ.get('MAIL_PASSWORD', '').strip()
-    mail_from   = os.environ.get('MAIL_FROM', mail_user).strip() or mail_user
-    use_ssl     = os.environ.get('MAIL_USE_SSL', 'false').lower() == 'true'
- 
-    # Guard: sin credenciales no hay nada que hacer
-    if not mail_user or not mail_pass:
-        msg = 'MAIL_USERNAME o MAIL_PASSWORD vacíos en variables de entorno.'
+    api_key = os.environ.get('BREVO_API_KEY', '').strip()
+    mail_from = os.environ.get('MAIL_FROM', '').strip()
+    mail_name = os.environ.get('MAIL_FROM_NAME', 'Body-Fit Gym').strip()
+
+    if not api_key:
+        msg = 'BREVO_API_KEY vacía en variables de entorno.'
         logger.error(f'[EMAIL] {msg}')
         return False, msg
- 
+
+    if not mail_from:
+        msg = 'MAIL_FROM vacío en variables de entorno.'
+        logger.error(f'[EMAIL] {msg}')
+        return False, msg
+
+    payload = {
+        'sender': {'name': mail_name, 'email': mail_from},
+        'to': [{'email': to_email}],
+        'subject': subject,
+        'htmlContent': html_body,
+    }
+
     try:
-        mime = MIMEMultipart('alternative')
-        mime['Subject'] = subject
-        mime['From']    = mail_from          # igual a la cuenta autenticada
-        mime['To']      = to_email
-        mime.attach(MIMEText(html_body, 'html', 'utf-8'))
- 
-        if use_ssl:
-            # Puerto 465 — SSL directo (Gmail, etc.)
-            context = ssl.create_default_context()
-            with smtplib.SMTP_SSL(mail_server, mail_port, context=context, timeout=20) as server:
-                server.login(mail_user, mail_pass)
-                server.sendmail(mail_user, to_email, mime.as_string())
-        else:
-            # Puerto 587 — STARTTLS (Outlook / Office 365)
-            with smtplib.SMTP(mail_server, mail_port, timeout=20) as server:
-                server.ehlo()
-                server.starttls()
-                server.ehlo()
-                server.login(mail_user, mail_pass)
-                server.sendmail(mail_user, to_email, mime.as_string())
- 
-        logger.info(f'[EMAIL OK] {subject} → {to_email}')
-        return True, ''
- 
-    except smtplib.SMTPAuthenticationError as exc:
-        err = (
-            'Error de autenticación SMTP. '
-            'Para Outlook/Hotmail personal debes usar una Contraseña de Aplicación '
-            '(Microsoft cuenta → Seguridad → Contraseñas de aplicación). '
-            f'Detalle: {str(exc)[:150]}'
+        response = requests.post(
+            'https://api.brevo.com/v3/smtp/email',
+            json=payload,
+            headers={
+                'api-key': api_key,
+                'Content-Type': 'application/json',
+            },
+            timeout=15,
         )
-        logger.error(f'[EMAIL AUTH] {err}')
-        return False, err
- 
+        if response.status_code in (200, 201):
+            logger.info(f'[EMAIL OK] {subject} → {to_email}')
+            return True, ''
+        else:
+            err = response.text[:200]
+            logger.error(f'[EMAIL ERROR] {response.status_code} → {err}')
+            return False, err
     except Exception as exc:
         err = str(exc)[:200]
         logger.error(f'[EMAIL ERROR] {subject} → {to_email}: {err}')
         return False, err
- 
- 
+
+
 def _log_notification(client_id, channel, message, success, error=''):
     try:
-        status = 'enviado' if success else f'error: {error[:100]}'
+        status = 'enviado' if success else 'error'
         notif = Notification(
             client_id=client_id,
             channel=channel,
@@ -95,10 +78,8 @@ def _log_notification(client_id, channel, message, success, error=''):
         except Exception:
             pass
     return success
- 
- 
-# ── Templates ────────────────────────────────────────────────
- 
+
+
 def _base_template(titulo: str, contenido: str) -> str:
     return f"""
     <!DOCTYPE html>
@@ -127,10 +108,10 @@ def _base_template(titulo: str, contenido: str) -> str:
     </body>
     </html>
     """
- 
- 
+
+
 class NotificationService:
- 
+
     @staticmethod
     def send_welcome(client):
         if not client.email:
@@ -147,9 +128,9 @@ class NotificationService:
         <p style="color:#555;">Ya puedes acercarte al gimnasio y activar tu membresía. ¡Nos vemos! 💪</p>
         """
         html = _base_template('¡Bienvenido a Body-Fit!', contenido)
-        ok, err = _send_smtp(client.email, '¡Bienvenido a Body-Fit Gym! 💪', html)
+        ok, err = _send_brevo(client.email, '¡Bienvenido a Body-Fit Gym! 💪', html)
         return _log_notification(client.id, 'email', f'Bienvenida: {client.full_name}', ok, err)
- 
+
     @staticmethod
     def send_payment_confirmation(payment):
         client = payment.client
@@ -168,9 +149,9 @@ class NotificationService:
         <p style="color:#555;">¡Entrena duro y alcanza tus metas! 🏋️</p>
         """
         html = _base_template('Pago Confirmado ✅', contenido)
-        ok, err = _send_smtp(client.email, f'Pago confirmado — {payment.membership.name}', html)
+        ok, err = _send_brevo(client.email, f'Pago confirmado — {payment.membership.name}', html)
         return _log_notification(client.id, 'email', f'Pago confirmado: ${payment.amount}', ok, err)
- 
+
     @staticmethod
     def send_expiry_warning(payment, days_left: int):
         client = payment.client
@@ -188,9 +169,9 @@ class NotificationService:
         <p style="color:#555;">Renueva antes de que venza para no perder días de entrenamiento. 💪</p>
         """
         html = _base_template(f'Tu membresía vence {dias_texto} {emoji}', contenido)
-        ok, err = _send_smtp(client.email, f'{emoji} Tu membresía vence {dias_texto} — Body-Fit', html)
+        ok, err = _send_brevo(client.email, f'{emoji} Tu membresía vence {dias_texto} — Body-Fit', html)
         return _log_notification(client.id, 'email', f'Aviso vencimiento: {days_left} días', ok, err)
- 
+
     @staticmethod
     def send_expired_notice(payment):
         client = payment.client
@@ -206,9 +187,9 @@ class NotificationService:
         <p style="color:#555;">¡Te esperamos de vuelta! 💪</p>
         """
         html = _base_template('Tu membresía ha vencido ❌', contenido)
-        ok, err = _send_smtp(client.email, '❌ Tu membresía en Body-Fit ha vencido — ¡Renueva!', html)
+        ok, err = _send_brevo(client.email, '❌ Tu membresía en Body-Fit ha vencido — ¡Renueva!', html)
         return _log_notification(client.id, 'email', f'Membresía expirada: {payment.end_date}', ok, err)
- 
+
     @staticmethod
     def send_password_reset(user):
         contenido = f"""
@@ -218,12 +199,11 @@ class NotificationService:
         <p style="color:#555;">Comunícate con el administrador del sistema para continuar.</p>
         """
         html = _base_template('Recuperación de Contraseña 🔐', contenido)
-        ok, err = _send_smtp(user.email, 'Recuperación de contraseña — Body-Fit', html)
+        ok, err = _send_brevo(user.email, 'Recuperación de contraseña — Body-Fit', html)
         return _log_notification(None, 'email', f'Reset password: {user.email}', ok, err)
- 
+
     @staticmethod
     def send_email(to_email, subject, body, client_id=None):
         html = _base_template(subject, f'<p style="color:#555;">{body}</p>')
-        ok, err = _send_smtp(to_email, subject, html)
+        ok, err = _send_brevo(to_email, subject, html)
         return _log_notification(client_id, 'email', subject[:100], ok, err)
- 

@@ -4,34 +4,90 @@
 <h4 class="mb-4"><i class="fas fa-money-bill me-2"></i>Registrar Pago</h4>
 <div class="card shadow-sm">
     <div class="card-body">
-        <form method="POST">
+        <form method="POST" id="payment_form">
             <div class="row g-3">
+
+                {# ── Cliente titular ── #}
                 <div class="col-md-6">
-                    <label class="form-label">Cliente *</label>
-                    <select name="client_id" class="form-select" required>
+                    <label class="form-label">Cliente Titular *</label>
+                    <select name="client_id" id="client_id" class="form-select" required>
                         <option value="">Selecciona cliente...</option>
                         {% for c in clients %}
-                        <option value="{{ c.id }}">{{ c.full_name }}</option>
+                        <option value="{{ c.id }}">{{ c.full_name }} — {{ c.document_number }}</option>
                         {% endfor %}
                     </select>
                 </div>
+
+                {# ── Membresía ── #}
                 <div class="col-md-6">
                     <label class="form-label">Membresía *</label>
                     <select name="membership_id" id="membership_id" class="form-select" required>
                         <option value="">Selecciona membresía...</option>
                         {% for m in memberships %}
-                        <option value="{{ m.id }}" data-price="{{ m.price }}">{{ m.name }} - ${{ '{:,.0f}'.format(m.price) }}</option>
+                        <option value="{{ m.id }}"
+                            data-price="{{ m.price }}"
+                            data-type="{{ m.membership_type }}"
+                            data-student="{{ 'true' if m.requires_student else 'false' }}">
+                            {{ m.name }} — ${{ '{:,.0f}'.format(m.price) }}
+                            {% if m.is_couple_plan %} 👫{% endif %}
+                            {% if m.is_student_plan %} 🎓{% endif %}
+                        </option>
                         {% endfor %}
                     </select>
                 </div>
+
+                {# ── Plan Pareja: segundo cliente (se muestra solo cuando aplica) ── #}
+                <div class="col-md-6" id="partner_section" style="display:none">
+                    <label class="form-label">
+                        Cliente Pareja *
+                        <span class="text-muted small">(Plan Pareja: obligatorio)</span>
+                    </label>
+                    <select name="partner_client_id" id="partner_client_id" class="form-select">
+                        <option value="">Selecciona el segundo cliente...</option>
+                        {% for c in clients %}
+                        <option value="{{ c.id }}">{{ c.full_name }} — {{ c.document_number }}</option>
+                        {% endfor %}
+                    </select>
+                    <div class="form-text text-info">
+                        <i class="fas fa-info-circle me-1"></i>
+                        Ambos clientes quedan inscritos bajo un mismo pago.
+                    </div>
+                </div>
+
+                {# ── Plan Estudiantil: confirmación bachiller ── #}
+                <div class="col-md-6" id="student_section" style="display:none">
+                    <div class="card border-warning h-100">
+                        <div class="card-body py-2">
+                            <div class="form-check">
+                                <input class="form-check-input" type="checkbox"
+                                       name="is_student" id="is_student">
+                                <label class="form-check-label fw-semibold" for="is_student">
+                                    <i class="fas fa-graduation-cap me-1 text-warning"></i>
+                                    Confirmo que el cliente es estudiante de bachillerato activo
+                                </label>
+                            </div>
+                            <div class="form-text text-warning mt-1">
+                                Este plan es exclusivo para bachilleres. Debes marcar esta casilla para continuar.
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                {# ── Monto ── #}
                 <div class="col-md-4">
                     <label class="form-label">Monto *</label>
-                    <input type="number" name="amount" id="amount" class="form-control" required min="0" step="0.01">
+                    <input type="number" name="amount" id="amount"
+                           class="form-control" required min="0" step="0.01">
                 </div>
+
+                {# ── Fecha de inicio ── #}
                 <div class="col-md-4">
                     <label class="form-label">Fecha de Inicio *</label>
-                    <input type="date" name="start_date" class="form-control" required value="{{ today }}">
+                    <input type="date" name="start_date" id="start_date"
+                           class="form-control" required value="{{ today }}">
                 </div>
+
+                {# ── Método de pago ── #}
                 <div class="col-md-4">
                     <label class="form-label">Método de Pago</label>
                     <select name="payment_method" class="form-select">
@@ -42,10 +98,22 @@
                         <option value="daviplata">Daviplata</option>
                     </select>
                 </div>
+
+                {# ── Vista previa de fecha de vencimiento ── #}
+                <div class="col-12" id="end_date_preview" style="display:none">
+                    <div class="alert alert-secondary py-2 mb-0">
+                        <i class="fas fa-calendar-times me-1"></i>
+                        Vencimiento estimado: <strong id="end_date_label">—</strong>
+                        <span class="text-muted small">(a las 23:59 de ese día)</span>
+                    </div>
+                </div>
+
+                {# ── Observaciones ── #}
                 <div class="col-12">
                     <label class="form-label">Observaciones</label>
                     <textarea name="notes" class="form-control" rows="2"></textarea>
                 </div>
+
                 <div class="col-12 d-flex gap-2">
                     <button type="submit" class="btn btn-primary">Registrar Pago</button>
                     <a href="{{ url_for('payments.index') }}" class="btn btn-secondary">Cancelar</a>
@@ -55,11 +123,111 @@
     </div>
 </div>
 {% endblock %}
+
 {% block extra_js %}
 <script>
-document.getElementById('membership_id').addEventListener('change', function() {
-    const opt = this.options[this.selectedIndex];
-    if (opt.dataset.price) document.getElementById('amount').value = opt.dataset.price;
+// Duración en días por membresía (inyectada desde el select)
+const membershipSel = document.getElementById('membership_id');
+const partnerSec    = document.getElementById('partner_section');
+const partnerSel    = document.getElementById('partner_client_id');
+const studentSec    = document.getElementById('student_section');
+const studentChk    = document.getElementById('is_student');
+const amountInput   = document.getElementById('amount');
+const startInput    = document.getElementById('start_date');
+const endPreview    = document.getElementById('end_date_preview');
+const endLabel      = document.getElementById('end_date_label');
+
+// Mapa de duración para cada opción
+function getDurationDays() {
+    const opt = membershipSel.options[membershipSel.selectedIndex];
+    // Obtenemos duración del data-price no existe, lo calculamos en backend.
+    // Aquí solo mostramos preview usando el mismo cálculo: start + (days-1)
+    return parseInt(opt.dataset.duration || '0');
+}
+
+function addDays(dateStr, days) {
+    const d = new Date(dateStr + 'T00:00:00');
+    d.setDate(d.getDate() + days);
+    return d.toLocaleDateString('es-CO', { day: '2-digit', month: '2-digit', year: 'numeric' });
+}
+
+// Inyectar duration en cada option (via JS, leyendo del servidor no disponible aquí;
+// usaremos un data attribute que el servidor debe pasar — ver nota abajo)
+// Como alternativa: hacemos fetch al cambiar, o el server renderiza data-duration.
+// Por ahora mostramos la preview solo si hay data-duration en el option.
+
+function updateUI() {
+    const opt = membershipSel.options[membershipSel.selectedIndex];
+    if (!opt || !opt.value) {
+        partnerSec.style.display = 'none';
+        studentSec.style.display = 'none';
+        endPreview.style.display = 'none';
+        partnerSel.required = false;
+        studentChk.required = false;
+        return;
+    }
+
+    const mtype   = opt.dataset.type || '';
+    const isCouple  = mtype === 'pareja';
+    const isStudent = mtype === 'estudiantil';
+    const price     = opt.dataset.price;
+    const duration  = parseInt(opt.dataset.duration || '0');
+
+    // Precio
+    if (price) amountInput.value = price;
+
+    // Plan pareja
+    partnerSec.style.display = isCouple ? '' : 'none';
+    partnerSel.required      = isCouple;
+
+    // Plan estudiantil
+    studentSec.style.display = isStudent ? '' : 'none';
+    studentChk.required      = isStudent;
+
+    // Preview vencimiento
+    if (duration > 0 && startInput.value) {
+        const end = addDays(startInput.value, duration - 1);
+        endLabel.textContent     = end;
+        endPreview.style.display = '';
+    } else {
+        endPreview.style.display = 'none';
+    }
+}
+
+membershipSel.addEventListener('change', updateUI);
+startInput.addEventListener('change', updateUI);
+
+// Validación al enviar
+document.getElementById('payment_form').addEventListener('submit', function(e) {
+    const opt = membershipSel.options[membershipSel.selectedIndex];
+    if (!opt || !opt.value) return;
+
+    const mtype = opt.dataset.type || '';
+
+    // Plan pareja: segundo cliente distinto al titular
+    if (mtype === 'pareja') {
+        const titularId = document.getElementById('client_id').value;
+        const partId    = partnerSel.value;
+        if (!partId) {
+            e.preventDefault();
+            alert('El Plan Pareja requiere seleccionar el segundo cliente.');
+            return;
+        }
+        if (titularId === partId) {
+            e.preventDefault();
+            alert('Los dos clientes del Plan Pareja deben ser personas diferentes.');
+            return;
+        }
+    }
+
+    // Plan estudiantil: checkbox obligatorio
+    if (mtype === 'estudiantil' && !studentChk.checked) {
+        e.preventDefault();
+        alert('Debes confirmar que el cliente es estudiante de bachillerato para este plan.');
+        return;
+    }
 });
+
+updateUI();
 </script>
 {% endblock %}

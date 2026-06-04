@@ -22,7 +22,7 @@
         <a class="nav-link text-light" href="/settings"><i class="fas fa-cog me-2"></i>Configuración</a>
         <a class="nav-link text-light" href="/backup"><i class="fas fa-database me-2"></i>Respaldos</a>
         <a class="nav-link text-light" href="/user"><i class="fas fa-user-cog me-2"></i>Usuarios</a>
-        {% if session.get('role') == 'admin' %}
+        {% if session.get('user_role') == 'admin' %}
         <hr class="border-secondary mx-3 my-1">
         <a class="nav-link text-warning" href="/email-test">
             <i class="fas fa-flask me-2"></i>Prueba de Emails

@@ -1,18 +1,19 @@
 import os
 from datetime import timedelta
 
-NEON_URL = (
-    "postgresql://neondb_owner:npg_sLy8bSxe9Clk"
-    "@ep-square-field-ap0biq9a-pooler.c-7.us-east-1.aws.neon.tech"
-    "/neondb?sslmode=require&channel_binding=require"
-)
 
 class Config:
     SECRET_KEY = os.environ.get('SECRET_KEY', 'dev-secret-cambiame')
     WTF_CSRF_ENABLED = True
 
-    # Usa DATABASE_URL del entorno si existe, si no usa Neon directamente
-    _db_url = os.environ.get('DATABASE_URL', NEON_URL)
+    # DATABASE_URL debe definirse como variable de entorno en Render.
+    # Nunca hardcodear credenciales en el código.
+    _db_url = os.environ.get('DATABASE_URL', '')
+    if not _db_url:
+        raise RuntimeError(
+            'DATABASE_URL no está definida. '
+            'Agrégala como variable de entorno en Render (o en tu .env local).'
+        )
     # Render a veces entrega 'postgres://', SQLAlchemy necesita 'postgresql://'
     if _db_url.startswith('postgres://'):
         _db_url = _db_url.replace('postgres://', 'postgresql://', 1)

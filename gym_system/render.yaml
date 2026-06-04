@@ -12,4 +12,4 @@ services:
       - key: SECRET_KEY
         generateValue: true
       - key: DATABASE_URL
-        value: "postgresql://neondb_owner:npg_sLy8bSxe9Clk@ep-square-field-ap0biq9a-pooler.c-7.us-east-1.aws.neon.tech/neondb?sslmode=require&channel_binding=require"
+        sync: false   # <-- se define manualmente en el dashboard de Render, NO en este archivo

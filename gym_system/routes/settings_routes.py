@@ -1,13 +1,14 @@
-from flask import Blueprint, render_template, request, redirect, url_for, flash, session
+from flask import Blueprint, render_template, request, redirect, url_for, flash
 from database.models.settings import GymSettings
 from database.db import db
+from utils.security import login_required, role_required
 
 settings_bp = Blueprint('settings', __name__, url_prefix='/settings')
 
 @settings_bp.route('/', methods=['GET', 'POST'])
+@login_required
+@role_required('admin')
 def index():
-    if 'user_id' not in session:
-        return redirect(url_for('auth.login'))
     s = GymSettings.query.first()
     if not s:
         s = GymSettings()

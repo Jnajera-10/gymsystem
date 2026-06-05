@@ -13,6 +13,9 @@ class Sale(db.Model):
     notes = db.Column(db.Text)
     is_deleted = db.Column(db.Boolean, default=False)
     sale_date = db.Column(db.DateTime, default=lambda: datetime.now(BOGOTA))
+
+    # Relación con el cliente (nullable porque puede ser venta sin cliente registrado)
+    client = db.relationship('Client', backref='sales', lazy=True, foreign_keys=[client_id])
     items = db.relationship('SaleItem', backref='sale', lazy=True)
 
 class SaleItem(db.Model):
@@ -23,4 +26,4 @@ class SaleItem(db.Model):
     quantity = db.Column(db.Integer, nullable=False)
     unit_price = db.Column(db.Float, nullable=False)
     subtotal = db.Column(db.Float, nullable=False)
-    product = db.relationship('Product', backref='sale_items')
+    product = db.relationship('Product', backref='sale_items', lazy=True)

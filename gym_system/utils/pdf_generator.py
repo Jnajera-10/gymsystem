@@ -9,6 +9,26 @@ from datetime import datetime
 DARK = colors.HexColor('#1a1a2e')
 ACCENT = colors.HexColor('#e94560')
 
+
+def _fmt_date(value, fmt='%d/%m/%Y'):
+    """Formatea una fecha/datetime de forma segura."""
+    if value is None:
+        return 'N/A'
+    try:
+        if hasattr(value, 'strftime'):
+            return value.strftime(fmt)
+        return str(value)[:10]
+    except Exception:
+        return str(value)
+
+
+def _fmt_money(value):
+    try:
+        return f'${float(value):,.0f}'
+    except (TypeError, ValueError):
+        return 'N/A'
+
+
 def generate_receipt_pdf(payment):
     buf = BytesIO()
     doc = SimpleDocTemplate(buf, pagesize=letter)
@@ -20,10 +40,10 @@ def generate_receipt_pdf(payment):
     data = [
         ['Cliente:', payment.client.full_name if payment.client else 'N/A'],
         ['Membresía:', payment.membership.name if payment.membership else 'N/A'],
-        ['Monto:', f'${payment.amount:,.0f}'],
-        ['Fecha de pago:', str(payment.payment_date)],
-        ['Vencimiento:', str(payment.end_date)],
-        ['Método:', payment.payment_method],
+        ['Monto:', _fmt_money(payment.amount)],
+        ['Fecha de pago:', _fmt_date(payment.payment_date)],
+        ['Vencimiento:', _fmt_date(payment.end_date)],
+        ['Método:', payment.payment_method or 'N/A'],
     ]
     table = Table(data, colWidths=[150, 300])
     table.setStyle(TableStyle([
@@ -38,11 +58,14 @@ def generate_receipt_pdf(payment):
     buf.seek(0)
     return buf
 
+
 def generate_report_pdf(tipo, data):
     buf = BytesIO()
-    doc = SimpleDocTemplate(buf, pagesize=letter,
-                            leftMargin=0.5*inch, rightMargin=0.5*inch,
-                            topMargin=0.5*inch, bottomMargin=0.5*inch)
+    doc = SimpleDocTemplate(
+        buf, pagesize=letter,
+        leftMargin=0.5*inch, rightMargin=0.5*inch,
+        topMargin=0.5*inch, bottomMargin=0.5*inch,
+    )
     styles = getSampleStyleSheet()
     elements = []
 
@@ -55,31 +78,45 @@ def generate_report_pdf(tipo, data):
     if tipo == 'clientes':
         table_data = [['ID', 'Nombre', 'Documento', 'Email', 'Celular', 'Estado']]
         for c in data:
-            table_data.append([c.id, c.full_name, c.document_number or '', c.email or '', c.phone or '',
-                                'Activo' if c.is_active else 'Inactivo'])
+            table_data.append([
+                c.id,
+                c.full_name or '',
+                c.document_number or '',
+                c.email or '',
+                c.phone or '',
+                'Activo' if c.is_active else 'Inactivo',
+            ])
         col_widths = [35, 150, 90, 130, 85, 55]
 
     elif tipo == 'pagos':
         table_data = [['ID', 'Cliente', 'Membresía', 'Monto', 'Fecha', 'Método']]
         for p in data:
-            table_data.append([p.id,
-                                p.client.full_name if p.client else 'N/A',
-                                p.membership.name if p.membership else 'N/A',
-                                f'${p.amount:,.0f}',
-                                str(p.payment_date)[:10],
-                                p.payment_method])
+            table_data.append([
+                p.id,
+                p.client.full_name if p.client else 'N/A',
+                p.membership.name if p.membership else 'N/A',
+                _fmt_money(p.amount),
+                _fmt_date(p.payment_date),
+                p.payment_method or '',
+            ])
         col_widths = [35, 140, 100, 70, 80, 70]
 
     elif tipo == 'ventas':
         table_data = [['ID', 'Cliente', 'Total', 'Método', 'Fecha', 'Productos']]
         for s in data:
-            table_data.append([s.id,
-                                s.client.full_name if s.client else 'General',
-                                f'${s.total:,.0f}',
-                                s.payment_method,
-                                s.sale_date.strftime('%d/%m/%Y'),
-                                len(s.items)])
+            # Protección contra sale_date None
+            fecha = _fmt_date(s.sale_date)
+            num_items = len(s.items) if s.items else 0
+            table_data.append([
+                s.id,
+                s.client.full_name if s.client else 'General',
+                _fmt_money(s.total),
+                s.payment_method or '',
+                fecha,
+                num_items,
+            ])
         col_widths = [35, 150, 80, 80, 90, 60]
+
     else:
         table_data = [['Sin datos']]
         col_widths = [500]

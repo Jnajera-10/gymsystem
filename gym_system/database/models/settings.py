@@ -16,4 +16,6 @@ class GymSettings(db.Model):
     facebook = db.Column(db.String(100))
     whatsapp = db.Column(db.String(20))
     days_before_expiry = db.Column(db.Integer, default=3)
+    # Campo dedicado para el job de notificaciones (evita depender de 'notes')
+    last_notif_run = db.Column(db.String(10), nullable=True)   # formato 'YYYY-MM-DD'
     updated_at = db.Column(db.DateTime, onupdate=lambda: datetime.now(BOGOTA))

@@ -125,8 +125,9 @@
                     </div>
                     <a href="{{ url_for('auth.forgot_password') }}" class="forgot-link">¿Olvidaste tu contraseña?</a>
                 </div>
-                <button type="submit" class="btn btn-login w-100">
-                    <i class="fas fa-sign-in-alt me-2"></i>Ingresar
+                <button type="submit" class="btn btn-login w-100" id="loginBtn">
+                    <i class="fas fa-sign-in-alt me-2" id="loginIcon"></i>
+                    <span id="loginText">Ingresar</span>
                 </button>
             </form>
         </div>
@@ -144,6 +145,20 @@
                 icon.classList.replace('fa-eye-slash', 'fa-eye');
             }
         }
+
+        // Deshabilitar botón al enviar para evitar múltiples clicks
+        document.querySelector('form').addEventListener('submit', function() {
+            const btn  = document.getElementById('loginBtn');
+            const icon = document.getElementById('loginIcon');
+            const text = document.getElementById('loginText');
+
+            btn.disabled = true;
+            btn.style.opacity = '0.75';
+            btn.style.cursor  = 'not-allowed';
+            icon.classList.replace('fa-sign-in-alt', 'fa-spinner');
+            icon.classList.add('fa-spin');
+            text.textContent = 'Ingresando...';
+        });
     </script>
 </body>
 </html>

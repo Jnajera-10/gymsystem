@@ -3,9 +3,10 @@ import pytz
 BOGOTA = pytz.timezone("America/Bogota")
 
 from flask import request, redirect, url_for, flash, render_template
-from database.models.payment import Payment
+from database.models.payment import Payment, SHIFT_MORNING, SHIFT_AFTERNOON, _get_shift
 from database.models.client import Client
 from database.models.membership import Membership
+from database.models.cash_register import CashRegister
 from database.db import db
 from services.payment_service import PaymentService
 from services.audit_service import AuditService
@@ -107,8 +108,10 @@ class PaymentsController:
 
         return render_template(
             'payments/create_payment.html',
-            clients     = clients,
-            memberships = memberships,
+            clients       = clients,
+            memberships   = memberships,
+            current_shift = _get_shift(),
+            today         = datetime.now(BOGOTA).strftime('%Y-%m-%d'),
         )
 
     @staticmethod

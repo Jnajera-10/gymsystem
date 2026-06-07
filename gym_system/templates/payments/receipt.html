@@ -16,7 +16,16 @@
                     <tr><th>Fecha de Pago</th><td>{{ payment.payment_date.strftime('%d/%m/%Y') }}</td></tr>
                     <tr><th>Válido desde</th><td>{{ payment.start_date.strftime('%d/%m/%Y') }}</td></tr>
                     <tr><th>Vence</th><td>{{ payment.end_date.strftime('%d/%m/%Y') }}</td></tr>
-                    <tr><th>Método</th><td>{{ payment.payment_method }}</td></tr>
+                    <tr><th>Método</th><td>{{ payment.payment_method | capitalize }}</td></tr>
+                    <tr><th>Turno</th><td>
+                        {% if payment.shift == 'mañana' %}🌅 Mañana (6am – 1pm)
+                        {% elif payment.shift == 'tarde' %}🌆 Tarde (1pm – cierre)
+                        {% else %}—{% endif %}
+                    </td></tr>
+                    {% if payment.payment_method == 'efectivo' and payment.cash_received %}
+                    <tr><th>Efectivo recibido</th><td>${{ '{:,.0f}'.format(payment.cash_received) }}</td></tr>
+                    <tr><th>Vuelto</th><td class="fw-bold text-warning">${{ '{:,.0f}'.format(payment.cash_change or 0) }}</td></tr>
+                    {% endif %}
                 </table>
 
                 {% if payment.client.email %}

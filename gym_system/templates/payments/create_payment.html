@@ -2,20 +2,25 @@
 {% block title %}Nuevo Pago{% endblock %}
 
 {% block extra_css %}
-<link href="https://cdnjs.cloudflare.com/ajax/libs/select2/4.1.0-rc.0/css/select2.min.css" rel="stylesheet">
 <style>
-  .select2-container--default .select2-selection--single {
-    height: 38px; border: 1px solid #ced4da; border-radius: 6px;
-  }
-  .select2-container--default .select2-selection--single .select2-selection__rendered {
-    line-height: 36px; padding-left: 10px; color: #212529;
-  }
-  .select2-container--default .select2-selection--single .select2-selection__arrow {
-    height: 36px;
-  }
-  .select2-container { width: 100% !important; }
-  .select2-dropdown { border: 1px solid #ced4da; border-radius: 6px; }
-  .select2-results__option--highlighted { background-color: #0d6efd !important; }
+.client-autocomplete-wrapper { position: relative; }
+.client-autocomplete-wrapper input.client-input {
+    width: 100%;
+}
+.client-dropdown {
+    position: absolute; top: 100%; left: 0; right: 0; z-index: 9999;
+    background: #fff; border: 1px solid #ced4da; border-radius: 0 0 6px 6px;
+    max-height: 220px; overflow-y: auto; display: none;
+    box-shadow: 0 4px 12px rgba(0,0,0,.15);
+}
+.client-dropdown .client-opt {
+    padding: 8px 12px; cursor: pointer; font-size: 14px; border-bottom: 1px solid #f0f0f0;
+}
+.client-dropdown .client-opt:hover,
+.client-dropdown .client-opt.active { background: #0d6efd; color: #fff; }
+.client-dropdown .client-opt-empty {
+    padding: 10px 12px; color: #999; font-size: 13px; font-style: italic;
+}
 </style>
 {% endblock %}
 
@@ -24,15 +29,20 @@
 <div class="card shadow-sm">
     <div class="card-body">
         <form method="POST" id="payment_form">
-
             <div class="row g-3">
 
                 {# ── Cliente titular ── #}
                 <div class="col-md-6">
                     <label class="form-label">Cliente Titular *</label>
-                    <select name="client_id" id="client_id" class="form-select client-search" required>
-                        <option value="">Buscar cliente por nombre o documento...</option>
-                    </select>
+                    {% call client_field('client_id', 'client_id_hidden', 'Buscar cliente por nombre o documento...') %}{% endcall %}
+                    <div class="client-autocomplete-wrapper">
+                        <input type="text" id="client_id_text"
+                               class="form-control client-input"
+                               placeholder="Buscar cliente por nombre o documento..."
+                               autocomplete="off">
+                        <input type="hidden" name="client_id" id="client_id_hidden" required>
+                        <div class="client-dropdown" id="client_id_dropdown"></div>
+                    </div>
                 </div>
 
                 {# ── Membresía ── #}
@@ -56,17 +66,19 @@
 
                 {# ── Plan Pareja: segundo cliente ── #}
                 <div class="col-md-6" id="partner_section" style="display:none">
-                    <label class="form-label">
-                        Cliente Pareja *
+                    <label class="form-label">Cliente Pareja *
                         <span class="text-muted small">(Plan Pareja: obligatorio)</span>
                     </label>
-                    <select name="partner_client_id" id="partner_client_id"
-                            class="form-select client-search">
-                        <option value="">Buscar segundo cliente...</option>
-                    </select>
+                    <div class="client-autocomplete-wrapper">
+                        <input type="text" id="partner_client_id_text"
+                               class="form-control client-input"
+                               placeholder="Buscar segundo cliente..."
+                               autocomplete="off">
+                        <input type="hidden" name="partner_client_id" id="partner_client_id_hidden">
+                        <div class="client-dropdown" id="partner_client_id_dropdown"></div>
+                    </div>
                     <div class="form-text text-info">
-                        <i class="fas fa-info-circle me-1"></i>
-                        Ambos clientes quedan inscritos bajo un mismo pago.
+                        <i class="fas fa-info-circle me-1"></i>Ambos clientes quedan inscritos bajo un mismo pago.
                     </div>
                 </div>
 
@@ -75,16 +87,13 @@
                     <div class="card border-warning h-100">
                         <div class="card-body py-2">
                             <div class="form-check">
-                                <input class="form-check-input" type="checkbox"
-                                       name="is_student" id="is_student">
+                                <input class="form-check-input" type="checkbox" name="is_student" id="is_student">
                                 <label class="form-check-label fw-semibold" for="is_student">
                                     <i class="fas fa-graduation-cap me-1 text-warning"></i>
                                     Confirmo que el cliente es estudiante de bachillerato activo
                                 </label>
                             </div>
-                            <div class="form-text text-warning mt-1">
-                                Este plan es exclusivo para bachilleres.
-                            </div>
+                            <div class="form-text text-warning mt-1">Este plan es exclusivo para bachilleres.</div>
                         </div>
                     </div>
                 </div>
@@ -104,12 +113,16 @@
                                         {% if i <= 3 %}<span class="text-danger">*</span>
                                         {% else %}<span class="text-muted">(opcional)</span>{% endif %}
                                     </label>
-                                    <select name="familiar_member_{{ i }}"
-                                            id="familiar_member_{{ i }}"
-                                            class="form-select client-search familiar-member-select"
-                                            {% if i <= 3 %}required{% endif %}>
-                                        <option value="">Buscar cliente...</option>
-                                    </select>
+                                    <div class="client-autocomplete-wrapper">
+                                        <input type="text" id="familiar_member_{{ i }}_text"
+                                               class="form-control client-input"
+                                               placeholder="Buscar cliente..."
+                                               autocomplete="off">
+                                        <input type="hidden" name="familiar_member_{{ i }}"
+                                               id="familiar_member_{{ i }}_hidden"
+                                               {% if i <= 3 %}required{% endif %}>
+                                        <div class="client-dropdown" id="familiar_member_{{ i }}_dropdown"></div>
+                                    </div>
                                 </div>
                                 {% endfor %}
                             </div>
@@ -121,9 +134,7 @@
                                         id="remove_familiar_btn" style="display:none">
                                     <i class="fas fa-user-minus me-1"></i>Quitar último
                                 </button>
-                                <span class="text-muted small align-self-center" id="familiar_count_label">
-                                    3 miembros seleccionados
-                                </span>
+                                <span class="text-muted small align-self-center" id="familiar_count_label">3 miembros</span>
                             </div>
                         </div>
                     </div>
@@ -132,11 +143,10 @@
                 {# ── Monto ── #}
                 <div class="col-md-4">
                     <label class="form-label">Monto *</label>
-                    <input type="number" name="amount" id="amount"
-                           class="form-control" required min="0" step="0.01">
+                    <input type="number" name="amount" id="amount" class="form-control" required min="0" step="0.01">
                 </div>
 
-                {# ── Fecha de inicio ── #}
+                {# ── Fecha inicio ── #}
                 <div class="col-md-4">
                     <label class="form-label">Fecha de Inicio *</label>
                     <input type="date" name="start_date" id="start_date"
@@ -181,39 +191,102 @@
 {% endblock %}
 
 {% block extra_js %}
-<script src="https://cdnjs.cloudflare.com/ajax/libs/select2/4.1.0-rc.0/js/select2.min.js"></script>
 <script>
-// ── Inicializar Select2 con búsqueda AJAX en todos los selectores de cliente ──
-function initClientSearch(selector) {
-    $(selector).select2({
-        placeholder: 'Buscar por nombre o documento...',
-        allowClear: true,
-        minimumInputLength: 1,
-        language: {
-            inputTooShort: function() { return 'Escribe al menos 1 letra...'; },
-            noResults:     function() { return 'No se encontró el cliente'; },
-            searching:     function() { return 'Buscando...'; },
-        },
-        ajax: {
-            url: '/clients/search',
-            dataType: 'json',
-            delay: 250,
-            data: function(params) { return { q: params.term }; },
-            processResults: function(data) { return { results: data }; },
-            cache: true,
-        },
+// ── Buscador de clientes (vanilla JS, sin jQuery) ─────────────────
+function setupClientSearch(textId, hiddenId, dropdownId) {
+    const textEl   = document.getElementById(textId);
+    const hiddenEl = document.getElementById(hiddenId);
+    const dropdown = document.getElementById(dropdownId);
+    if (!textEl) return;
+
+    let timer = null;
+    let activeIdx = -1;
+
+    function showResults(results) {
+        dropdown.innerHTML = '';
+        activeIdx = -1;
+        if (!results.length) {
+            dropdown.innerHTML = '<div class="client-opt-empty">No se encontró ningún cliente</div>';
+            dropdown.style.display = 'block';
+            return;
+        }
+        results.forEach(function(r, i) {
+            const div = document.createElement('div');
+            div.className = 'client-opt';
+            div.textContent = r.text;
+            div.dataset.id  = r.id;
+            div.addEventListener('mousedown', function(e) {
+                e.preventDefault();
+                selectClient(r.id, r.text);
+            });
+            dropdown.appendChild(div);
+        });
+        dropdown.style.display = 'block';
+    }
+
+    function selectClient(id, text) {
+        hiddenEl.value = id;
+        textEl.value   = text;
+        dropdown.style.display = 'none';
+    }
+
+    function clearSelection() {
+        hiddenEl.value = '';
+    }
+
+    textEl.addEventListener('input', function() {
+        clearSelection();
+        clearTimeout(timer);
+        const q = textEl.value.trim();
+        if (q.length < 1) { dropdown.style.display = 'none'; return; }
+        timer = setTimeout(function() {
+            fetch('/clients/search?q=' + encodeURIComponent(q))
+                .then(function(r) { return r.json(); })
+                .then(showResults)
+                .catch(function() { dropdown.style.display = 'none'; });
+        }, 250);
+    });
+
+    // Navegación con teclado
+    textEl.addEventListener('keydown', function(e) {
+        const opts = dropdown.querySelectorAll('.client-opt');
+        if (e.key === 'ArrowDown') {
+            e.preventDefault();
+            activeIdx = Math.min(activeIdx + 1, opts.length - 1);
+        } else if (e.key === 'ArrowUp') {
+            e.preventDefault();
+            activeIdx = Math.max(activeIdx - 1, 0);
+        } else if (e.key === 'Enter' && activeIdx >= 0) {
+            e.preventDefault();
+            const opt = opts[activeIdx];
+            if (opt) selectClient(opt.dataset.id, opt.textContent);
+            return;
+        } else if (e.key === 'Escape') {
+            dropdown.style.display = 'none'; return;
+        }
+        opts.forEach(function(o, i) {
+            o.classList.toggle('active', i === activeIdx);
+        });
+    });
+
+    // Cerrar al perder foco
+    textEl.addEventListener('blur', function() {
+        setTimeout(function() { dropdown.style.display = 'none'; }, 150);
     });
 }
 
-// Inicializar todos los client-search al cargar
-document.querySelectorAll('.client-search').forEach(function(el) {
-    initClientSearch('#' + el.id);
-});
+// Inicializar buscadores
+setupClientSearch('client_id_text',           'client_id_hidden',           'client_id_dropdown');
+setupClientSearch('partner_client_id_text',   'partner_client_id_hidden',   'partner_client_id_dropdown');
+for (var i = 2; i <= 6; i++) {
+    setupClientSearch('familiar_member_' + i + '_text',
+                      'familiar_member_' + i + '_hidden',
+                      'familiar_member_' + i + '_dropdown');
+}
 
-// ── Lógica de membresía ────────────────────────────────────────────
+// ── Lógica de membresía ───────────────────────────────────────────
 const membershipSel = document.getElementById('membership_id');
 const partnerSec    = document.getElementById('partner_section');
-const partnerSel    = document.getElementById('partner_client_id');
 const studentSec    = document.getElementById('student_section');
 const studentChk    = document.getElementById('is_student');
 const familiarSec   = document.getElementById('familiar_section');
@@ -228,23 +301,22 @@ const MAX_FAMILIAR = 6;
 document.getElementById('add_familiar_btn').addEventListener('click', function() {
     if (familiarCount >= MAX_FAMILIAR) return;
     familiarCount++;
-    const row = document.getElementById('familiar_row_' + familiarCount);
-    row.style.display = '';
-    initClientSearch('#familiar_member_' + familiarCount);
+    document.getElementById('familiar_row_' + familiarCount).style.display = '';
     updateFamiliarUI();
 });
 
 document.getElementById('remove_familiar_btn').addEventListener('click', function() {
     if (familiarCount <= 3) return;
     const row = document.getElementById('familiar_row_' + familiarCount);
-    $('#familiar_member_' + familiarCount).val(null).trigger('change');
+    document.getElementById('familiar_member_' + familiarCount + '_text').value   = '';
+    document.getElementById('familiar_member_' + familiarCount + '_hidden').value = '';
     row.style.display = 'none';
     familiarCount--;
     updateFamiliarUI();
 });
 
 function updateFamiliarUI() {
-    document.getElementById('familiar_count_label').textContent = familiarCount + ' miembros seleccionados';
+    document.getElementById('familiar_count_label').textContent = familiarCount + ' miembros';
     document.getElementById('add_familiar_btn').disabled = familiarCount >= MAX_FAMILIAR;
     document.getElementById('remove_familiar_btn').style.display = familiarCount > 3 ? '' : 'none';
 }
@@ -262,11 +334,8 @@ function updateUI() {
         studentSec.style.display  = 'none';
         familiarSec.style.display = 'none';
         endPreview.style.display  = 'none';
-        partnerSel.required = false;
-        studentChk.required = false;
         return;
     }
-
     const mtype    = opt.dataset.type || '';
     const price    = opt.dataset.price;
     const duration = parseInt(opt.dataset.duration || '0');
@@ -274,9 +343,7 @@ function updateUI() {
     if (price) amountInput.value = price;
 
     partnerSec.style.display  = mtype === 'pareja'      ? '' : 'none';
-    partnerSel.required       = mtype === 'pareja';
     studentSec.style.display  = mtype === 'estudiantil' ? '' : 'none';
-    studentChk.required       = mtype === 'estudiantil';
     familiarSec.style.display = mtype === 'familiar'    ? '' : 'none';
 
     if (duration > 0 && startInput.value) {
@@ -288,23 +355,30 @@ function updateUI() {
 }
 
 membershipSel.addEventListener('change', updateUI);
-startInput.addEventListener('change',    updateUI);
+startInput.addEventListener('change', updateUI);
 
-// ── Validación al enviar ───────────────────────────────────────────
+// ── Validación al enviar ──────────────────────────────────────────
 document.getElementById('payment_form').addEventListener('submit', function(e) {
+    const clientHidden = document.getElementById('client_id_hidden');
+    if (!clientHidden.value) {
+        e.preventDefault();
+        alert('Debes seleccionar un cliente de la lista.');
+        document.getElementById('client_id_text').focus();
+        return;
+    }
+
     const opt = membershipSel.options[membershipSel.selectedIndex];
     if (!opt || !opt.value) return;
     const mtype = opt.dataset.type || '';
 
     if (mtype === 'pareja') {
-        const titularId = document.getElementById('client_id').value;
-        const partId    = partnerSel.value;
-        if (!partId) {
+        const partHidden = document.getElementById('partner_client_id_hidden');
+        if (!partHidden.value) {
             e.preventDefault();
             alert('El Plan Pareja requiere seleccionar el segundo cliente.');
             return;
         }
-        if (titularId === partId) {
+        if (clientHidden.value === partHidden.value) {
             e.preventDefault();
             alert('Los dos clientes del Plan Pareja deben ser personas diferentes.');
             return;
@@ -313,23 +387,22 @@ document.getElementById('payment_form').addEventListener('submit', function(e) {
 
     if (mtype === 'estudiantil' && !studentChk.checked) {
         e.preventDefault();
-        alert('Debes confirmar que el cliente es estudiante de bachillerato para este plan.');
+        alert('Debes confirmar que el cliente es estudiante de bachillerato.');
         return;
     }
 
     if (mtype === 'familiar') {
-        const titularId = document.getElementById('client_id').value;
-        const ids = [titularId];
+        const ids = [clientHidden.value];
         for (let i = 2; i <= familiarCount; i++) {
-            const val = document.getElementById('familiar_member_' + i).value;
+            const val = document.getElementById('familiar_member_' + i + '_hidden').value;
             if (!val) {
                 e.preventDefault();
-                alert('El Plan Familiar requiere completar todos los integrantes seleccionados.');
+                alert('Completa todos los integrantes del Plan Familiar.');
                 return;
             }
             if (ids.includes(val)) {
                 e.preventDefault();
-                alert('No puedes agregar el mismo cliente dos veces en el Plan Familiar.');
+                alert('No puedes agregar el mismo cliente dos veces.');
                 return;
             }
             ids.push(val);

@@ -1,5 +1,50 @@
 {% extends 'layouts/base.html' %}
-{% block title %}Dashboard - Body-Fit{% endblock %}
+{% block title %}Dashboard - Body-Fit
+{# ── Modal: Renovar o cambiar plan ───────────────────────────────── #}
+<div class="modal fade" id="renewModal" tabindex="-1" aria-labelledby="renewModalLabel" aria-hidden="true">
+  <div class="modal-dialog modal-dialog-centered">
+    <div class="modal-content">
+      <div class="modal-header">
+        <h5 class="modal-title" id="renewModalLabel">
+          <i class="fas fa-sync-alt me-2 text-success"></i>Renovar Membresía
+        </h5>
+        <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+      </div>
+      <div class="modal-body">
+        <p class="mb-1">Cliente: <strong id="modal-client-name"></strong></p>
+        <p class="mb-3">Plan actual: <span class="badge bg-secondary" id="modal-membership-name"></span></p>
+        <p class="fw-semibold mb-3">¿Qué deseas hacer?</p>
+        <div class="d-grid gap-2">
+          <a id="btn-same-plan" href="#" class="btn btn-success">
+            <i class="fas fa-redo me-2"></i>Continuar con el mismo plan
+          </a>
+          <a id="btn-change-plan" href="#" class="btn btn-outline-primary">
+            <i class="fas fa-exchange-alt me-2"></i>Cambiar de membresía
+          </a>
+        </div>
+      </div>
+      <div class="modal-footer">
+        <button type="button" class="btn btn-outline-secondary btn-sm" data-bs-dismiss="modal">Cancelar</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<script>
+document.addEventListener('DOMContentLoaded', function () {
+    const renewModal = document.getElementById('renewModal');
+    if (!renewModal) return;
+    renewModal.addEventListener('show.bs.modal', function (event) {
+        const btn = event.relatedTarget;
+        document.getElementById('modal-client-name').textContent    = btn.dataset.clientName;
+        document.getElementById('modal-membership-name').textContent = btn.dataset.membershipName;
+        document.getElementById('btn-same-plan').href   = btn.dataset.renewUrl;
+        document.getElementById('btn-change-plan').href = btn.dataset.changeUrl;
+    });
+});
+</script>
+
+{% endblock %}
 {% block content %}
 <h4 class="mb-4"><i class="fas fa-tachometer-alt me-2"></i>Dashboard</h4>
 
@@ -531,10 +576,19 @@
                     <td class="text-muted small">{{ p.membership.name }}</td>
                     <td class="text-danger small">{{ p.end_date.strftime('%d/%m/%Y') }}</td>
                     <td>
-                        <a href="{{ url_for('payments.renew', client_id=p.client.id, membership_id=p.membership.id) }}"
-                           class="btn btn-sm btn-outline-success py-0 px-2">
+                        {# Botón abre modal para elegir: mismo plan o cambiar #}
+                        <button type="button"
+                                class="btn btn-sm btn-outline-success py-0 px-2"
+                                data-bs-toggle="modal"
+                                data-bs-target="#renewModal"
+                                data-client-id="{{ p.client.id }}"
+                                data-client-name="{{ p.client.full_name }}"
+                                data-membership-id="{{ p.membership.id }}"
+                                data-membership-name="{{ p.membership.name }}"
+                                data-renew-url="{{ url_for('payments.renew', client_id=p.client.id, membership_id=p.membership.id) }}"
+                                data-change-url="{{ url_for('payments.renew', client_id=p.client.id) }}">
                             <i class="fas fa-sync-alt me-1"></i>Renovar
-                        </a>
+                        </button>
                     </td>
                 </tr>
                 {% endfor %}

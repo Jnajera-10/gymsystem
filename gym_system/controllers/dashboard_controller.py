@@ -131,7 +131,13 @@ class DashboardController:
             .all()
         )
 
-        # ── Alertas: ya vencidas — excluye plan Diario ────────────────
+        # ── Alertas: ya vencidas — excluye plan Diario y clientes con membresía activa ──
+        # Primero obtenemos los client_ids que tienen al menos 1 pago activo hoy
+        active_client_ids = db.session.query(Payment.client_id).filter(
+            Payment.end_date >= today,
+            Payment.is_deleted == False,
+        ).distinct().subquery()
+
         expired_payments = (
             Payment.query
             .join(MembershipModel, Payment.membership_id == MembershipModel.id)
@@ -139,6 +145,8 @@ class DashboardController:
                 Payment.end_date < today,
                 Payment.is_deleted == False,
                 MembershipModel.membership_type != 'diario',
+                # Excluir clientes que ya tienen otra membresía activa
+                Payment.client_id.notin_(active_client_ids),
             )
             .order_by(Payment.end_date.desc())
             .limit(10)

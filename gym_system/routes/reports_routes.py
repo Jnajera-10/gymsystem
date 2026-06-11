@@ -63,7 +63,12 @@ def index():
         .all()
     )
 
-    # Vencidas — excluye plan Diario
+    # Vencidas — excluye plan Diario y clientes con membresía activa
+    from database.db import db as _db
+    active_ids = _db.session.query(Payment.client_id).filter(
+        Payment.end_date >= today,
+        Payment.is_deleted == False,
+    ).distinct().subquery()
     expired = (
         Payment.query
         .join(MembershipModel, Payment.membership_id == MembershipModel.id)
@@ -71,6 +76,7 @@ def index():
             Payment.end_date < today,
             Payment.is_deleted == False,
             MembershipModel.membership_type != 'diario',
+            Payment.client_id.notin_(active_ids),
         )
         .order_by(Payment.end_date.desc())
         .all()
@@ -163,6 +169,11 @@ def pdf_sales():
 @login_required
 def excel_expired():
     today = datetime.now(BOGOTA).date()
+    from database.db import db as _db
+    active_ids = _db.session.query(Payment.client_id).filter(
+        Payment.end_date >= today,
+        Payment.is_deleted == False,
+    ).distinct().subquery()
     expired = (
         Payment.query
         .join(MembershipModel, Payment.membership_id == MembershipModel.id)
@@ -170,6 +181,7 @@ def excel_expired():
             Payment.end_date < today,
             Payment.is_deleted == False,
             MembershipModel.membership_type != 'diario',
+            Payment.client_id.notin_(active_ids),
         )
         .order_by(Payment.end_date.desc())
         .all()
@@ -205,6 +217,11 @@ def excel_expiring():
 @login_required
 def pdf_expired():
     today = datetime.now(BOGOTA).date()
+    from database.db import db as _db
+    active_ids = _db.session.query(Payment.client_id).filter(
+        Payment.end_date >= today,
+        Payment.is_deleted == False,
+    ).distinct().subquery()
     expired = (
         Payment.query
         .join(MembershipModel, Payment.membership_id == MembershipModel.id)
@@ -212,6 +229,7 @@ def pdf_expired():
             Payment.end_date < today,
             Payment.is_deleted == False,
             MembershipModel.membership_type != 'diario',
+            Payment.client_id.notin_(active_ids),
         )
         .order_by(Payment.end_date.desc())
         .all()

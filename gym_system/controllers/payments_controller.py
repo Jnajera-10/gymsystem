@@ -216,6 +216,7 @@ class PaymentsController:
             preselect_client = client,
             preselect_membership = membership,
             suggested_start  = suggested_start,
+            today            = today,
         )
 
     @staticmethod

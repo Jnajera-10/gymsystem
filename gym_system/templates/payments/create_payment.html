@@ -174,6 +174,20 @@
                            class="form-control" required value="{{ today }}">
                 </div>
 
+                {# ── Fecha de Pago ── #}
+                <div class="col-md-4">
+                    <label class="form-label">
+                        Fecha de Pago *
+                        <span class="text-muted small" data-bs-toggle="tooltip"
+                              title="Cambia esta fecha si el pago corresponde a otro mes. Las ganancias se registran en el período correcto.">ⓘ</span>
+                    </label>
+                    <input type="date" name="payment_date" id="payment_date"
+                           class="form-control" required value="{{ today }}">
+                    <div id="payment_date_warning" class="form-text text-warning fw-semibold d-none">
+                        ⚠️ La fecha de pago es diferente a hoy. El ingreso se contabilizará en ese mes.
+                    </div>
+                </div>
+
                 {# ── Método(s) de Pago ── #}
                 <div class="col-12">
                     <label class="form-label fw-semibold">Método(s) de Pago *</label>
@@ -390,6 +404,24 @@ const studentChk    = document.getElementById('is_student');
 const familiarSec   = document.getElementById('familiar_section');
 const amountInput   = document.getElementById('amount');
 const startInput    = document.getElementById('start_date');
+const paymentDateInput = document.getElementById('payment_date');
+const paymentDateWarning = document.getElementById('payment_date_warning');
+
+// ── Aviso si la fecha de pago es diferente a hoy ──────────────────
+function checkPaymentDateWarning() {
+    const today = new Date().toISOString().split('T')[0];
+    if (paymentDateInput && paymentDateWarning) {
+        if (paymentDateInput.value && paymentDateInput.value !== today) {
+            paymentDateWarning.classList.remove('d-none');
+        } else {
+            paymentDateWarning.classList.add('d-none');
+        }
+    }
+}
+if (paymentDateInput) {
+    paymentDateInput.addEventListener('change', checkPaymentDateWarning);
+    checkPaymentDateWarning();
+}
 const endPreview    = document.getElementById('end_date_preview');
 const endLabel      = document.getElementById('end_date_label');
 
@@ -705,6 +737,13 @@ document.getElementById('payment_form').addEventListener('submit', function(e) {
             alert('El Plan Familiar requiere mínimo 3 integrantes.');
             return;
         }
+    }
+
+    // ── Anti-doble-clic: deshabilitar botón al enviar ─────────────
+    const submitBtn = document.querySelector('#payment_form button[type="submit"]');
+    if (submitBtn) {
+        submitBtn.disabled = true;
+        submitBtn.innerHTML = '<span class="spinner-border spinner-border-sm me-2" role="status" aria-hidden="true"></span>Registrando...';
     }
 });
 

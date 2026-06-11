@@ -91,10 +91,23 @@ class PaymentService:
             except (ValueError, TypeError):
                 pass
 
+        # Fecha de pago: si el usuario la especificó (pago de otro mes), usarla.
+        # Si no, usar hoy. Esto permite registrar pagos atrasados sin que
+        # aparezcan como ganancia del día/mes incorrecto.
+        raw_payment_date = form_data.get('payment_date', '').strip()
+        if raw_payment_date:
+            try:
+                payment_date = datetime.strptime(raw_payment_date, '%Y-%m-%d').date()
+            except ValueError:
+                payment_date = datetime.now(BOGOTA).date()
+        else:
+            payment_date = datetime.now(BOGOTA).date()
+
         payment = Payment(
             client_id        = int(form_data['client_id']),
             membership_id    = int(form_data['membership_id']),
             amount           = float(form_data['amount']),
+            payment_date     = payment_date,
             start_date       = start_date,
             end_date         = end_date,
             payment_method   = payment_method_str,

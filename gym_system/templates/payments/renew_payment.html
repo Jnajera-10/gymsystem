@@ -97,6 +97,20 @@
                     </div>
                 </div>
 
+                {# ── Fecha de Pago ── #}
+                <div class="col-md-4">
+                    <label class="form-label">
+                        Fecha de Pago *
+                        <span class="text-muted small" data-bs-toggle="tooltip"
+                              title="Cambia esta fecha si el pago corresponde a otro mes. Las ganancias se registran en el período correcto.">ⓘ</span>
+                    </label>
+                    <input type="date" name="payment_date" id="payment_date"
+                           class="form-control" required value="{{ today.strftime('%Y-%m-%d') if today else '' }}">
+                    <div id="payment_date_warning" class="form-text text-warning fw-semibold d-none">
+                        ⚠️ La fecha de pago es diferente a hoy. El ingreso se contabilizará en ese mes.
+                    </div>
+                </div>
+
                 {# ── Preview de vencimiento ── #}
                 <div class="col-md-4">
                     <label class="form-label">Vence el (calculado)</label>
@@ -149,6 +163,23 @@
 <script>
 const membershipSel = document.getElementById('membership_id');
 const startInput    = document.getElementById('start_date');
+const paymentDateInput = document.getElementById('payment_date');
+const paymentDateWarning = document.getElementById('payment_date_warning');
+
+function checkPaymentDateWarning() {
+    const today = new Date().toISOString().split('T')[0];
+    if (paymentDateInput && paymentDateWarning) {
+        if (paymentDateInput.value && paymentDateInput.value !== today) {
+            paymentDateWarning.classList.remove('d-none');
+        } else {
+            paymentDateWarning.classList.add('d-none');
+        }
+    }
+}
+if (paymentDateInput) {
+    paymentDateInput.addEventListener('change', checkPaymentDateWarning);
+    checkPaymentDateWarning();
+}
 const amountInput   = document.getElementById('amount');
 const endPreview    = document.getElementById('end_preview');
 const partnerSec    = document.getElementById('partner_section');
@@ -212,6 +243,13 @@ document.getElementById('renew_form').addEventListener('submit', function(e) {
         e.preventDefault();
         alert('Debes confirmar que el cliente es bachiller.');
         return;
+    }
+
+    // ── Anti-doble-clic: deshabilitar botón al enviar ─────────────
+    const submitBtn = document.querySelector('#renew_form button[type="submit"]');
+    if (submitBtn) {
+        submitBtn.disabled = true;
+        submitBtn.innerHTML = '<span class="spinner-border spinner-border-sm me-2" role="status" aria-hidden="true"></span>Registrando...';
     }
 });
 

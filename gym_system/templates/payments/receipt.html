@@ -13,7 +13,14 @@
                     <small class="text-muted">N° {{ payment.id }}</small>
                 </div>
                 <table class="table table-bordered">
-                    <tr><th>Cliente</th><td>{{ payment.client.full_name }}</td></tr>
+                    <tr><th>Cliente</th><td>
+                        {% if payment.membership and payment.membership.membership_type == 'diario' and payment.notes %}
+                            <span class="fw-bold text-primary">{{ payment.notes }}</span>
+                            <span class="text-muted small ms-2">(Pase diario)</span>
+                        {% else %}
+                            {{ payment.client.full_name }}
+                        {% endif %}
+                    </td></tr>
                     <tr><th>Membresía</th><td>{{ payment.membership.name }}</td></tr>
                     <tr><th>Monto</th><td class="fw-bold text-success">${{ '{:,.0f}'.format(payment.amount) }}</td></tr>
                     <tr><th>Fecha de Pago</th><td>{{ payment.payment_date.strftime('%d/%m/%Y') }}</td></tr>
@@ -28,6 +35,9 @@
                     {% if payment.payment_method == 'efectivo' and payment.cash_received %}
                     <tr><th>Efectivo recibido</th><td>${{ '{:,.0f}'.format(payment.cash_received) }}</td></tr>
                     <tr><th>Vuelto</th><td class="fw-bold text-warning">${{ '{:,.0f}'.format(payment.cash_change or 0) }}</td></tr>
+                    {% endif %}
+                    {% if payment.notes and not (payment.membership and payment.membership.membership_type == 'diario') %}
+                    <tr><th>Observaciones</th><td>{{ payment.notes }}</td></tr>
                     {% endif %}
                 </table>
 

@@ -163,6 +163,38 @@ class DashboardController:
         net_income = (stats['today_income'] + today_inventory_income
                       - (opening_cash or 0) - today_expenses_total)
 
+        # ── Ganancias exclusivas plan Diario ─────────────────────────
+        # Se filtra por payment_date (fecha en que se registró el pago),
+        # no por start_date. Así un pago viejo registrado hoy NO suma al día,
+        # y un pago del mes pasado NO suma al mes actual.
+        from database.models.membership import Membership as MembershipModel
+        from sqlalchemy import extract as sql_extract
+
+        daily_today_payments = (
+            Payment.query
+            .join(MembershipModel, Payment.membership_id == MembershipModel.id)
+            .filter(
+                Payment.payment_date == today,
+                Payment.is_deleted   == False,
+                MembershipModel.membership_type == 'diario',
+            ).all()
+        )
+        daily_today_income = sum(p.amount for p in daily_today_payments)
+        daily_count_today  = len(daily_today_payments)
+
+        daily_month_payments = (
+            Payment.query
+            .join(MembershipModel, Payment.membership_id == MembershipModel.id)
+            .filter(
+                sql_extract('month', Payment.payment_date) == now.month,
+                sql_extract('year',  Payment.payment_date) == now.year,
+                Payment.is_deleted == False,
+                MembershipModel.membership_type == 'diario',
+            ).all()
+        )
+        daily_month_income = sum(p.amount for p in daily_month_payments)
+        daily_count_month  = len(daily_month_payments)
+
         return render_template(
             'dashboard/dashboard.html',
             stats                   = stats,
@@ -185,4 +217,9 @@ class DashboardController:
             today_inventory_income  = today_inventory_income,
             month_inventory_income  = month_inventory_income,
             june_inventory_income   = june_inventory_income,
+            # Diarios
+            daily_today_income      = daily_today_income,
+            daily_today_count       = daily_count_today,
+            daily_month_income      = daily_month_income,
+            daily_month_count       = daily_count_month,
         )

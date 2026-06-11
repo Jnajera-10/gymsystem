@@ -65,10 +65,14 @@
             <div class="card-header fw-semibold d-flex justify-content-between align-items-center">
                 <span><i class="fas fa-id-badge me-2 text-primary"></i>Membresía Actual</span>
                 {% if active_payment %}
-                    {# Botón renovar solo cuando hay plan activo — renueva el mismo plan #}
                     <a href="{{ url_for('payments.renew', client_id=client.id, membership_id=active_payment.membership.id) }}"
                        class="btn btn-sm btn-success">
                         <i class="fas fa-sync-alt me-1"></i>Renovar
+                    </a>
+                {% elif last_payment %}
+                    <a href="{{ url_for('payments.renew', client_id=client.id, membership_id=last_payment.membership.id) }}"
+                       class="btn btn-sm btn-warning">
+                        <i class="fas fa-sync-alt me-1"></i>Renovar (vencida)
                     </a>
                 {% else %}
                     <a href="{{ url_for('payments.create') }}?client_id={{ client.id }}"
@@ -89,7 +93,35 @@
                             {{ 'Vencida' if days_left < 0 else 'Vence hoy' if days_left == 0 else days_left ~ ' días' }}
                         </span>
                     </p>
-                    <p class="mb-0"><strong>Pagado:</strong> ${{ '{:,.0f}'.format(active_payment.amount) }} — {{ active_payment.payment_method }}</p>
+                    <p class="mb-2"><strong>Pagado:</strong> ${{ '{:,.0f}'.format(active_payment.amount) }} — {{ active_payment.payment_method }}</p>
+                    {# ── Modificar días ── #}
+                    <form method="POST" action="{{ url_for('payments.extend', payment_id=active_payment.id) }}"
+                          class="d-flex align-items-center gap-2 mt-2"
+                          onsubmit="return confirm('¿Modificar los días de membresía de {{ client.full_name }}?')">
+                        <label class="form-label mb-0 small fw-semibold">Modificar días:</label>
+                        <input type="number" name="days" class="form-control form-control-sm" style="width:90px"
+                               placeholder="Ej: 5 o -3" required>
+                        <button type="submit" class="btn btn-sm btn-outline-primary">
+                            <i class="fas fa-calendar-plus me-1"></i>Aplicar
+                        </button>
+                        <span class="text-muted small">positivo = agregar, negativo = quitar</span>
+                    </form>
+                {% elif last_payment %}
+                    <p class="text-muted mb-1">
+                        <i class="fas fa-exclamation-circle me-1 text-warning"></i>Membresía vencida.
+                    </p>
+                    <p class="mb-1 small"><strong>Último plan:</strong> {{ last_payment.membership.name }} — venció el {{ last_payment.end_date.strftime('%d/%m/%Y') }}</p>
+                    {# ── Modificar días del último pago vencido ── #}
+                    <form method="POST" action="{{ url_for('payments.extend', payment_id=last_payment.id) }}"
+                          class="d-flex align-items-center gap-2 mt-2"
+                          onsubmit="return confirm('¿Modificar los días de membresía de {{ client.full_name }}?')">
+                        <label class="form-label mb-0 small fw-semibold">Agregar días:</label>
+                        <input type="number" name="days" class="form-control form-control-sm" style="width:90px"
+                               placeholder="Ej: 30" required>
+                        <button type="submit" class="btn btn-sm btn-outline-warning">
+                            <i class="fas fa-calendar-plus me-1"></i>Aplicar
+                        </button>
+                    </form>
                 {% else %}
                     <p class="text-muted mb-2">
                         <i class="fas fa-exclamation-circle me-1"></i>Sin membresía vigente.

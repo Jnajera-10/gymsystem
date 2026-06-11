@@ -179,6 +179,15 @@ class ClientsController:
         return redirect(url_for('clients.index'))
 
     @staticmethod
+    def activate(client_id):
+        client = Client.query.get_or_404(client_id)
+        client.is_active = True
+        db.session.commit()
+        AuditService.log('update', 'clients', client.id, 'inactivo', 'activo')
+        flash(f'✅ Cliente {client.full_name} reactivado correctamente.', 'success')
+        return redirect(url_for('clients.index'))
+
+    @staticmethod
     def delete(client_id):
         """Elimina físicamente el cliente y todos sus registros relacionados.
         Esto libera el documento para que se pueda volver a registrar."""
@@ -237,11 +246,15 @@ class ClientsController:
         active_payment = next(
             (p for p in payments if p.end_date >= today), None
         )
+        # Último pago aunque esté vencido (para mostrar botón renovar)
+        last_payment = payments[0] if payments else None
+
         return render_template(
             'clients/client_details.html',
             client=client,
             payments=payments,
             active_payment=active_payment,
+            last_payment=last_payment,
             today=today,
         )
 

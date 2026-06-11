@@ -50,9 +50,15 @@
                             <button class="btn btn-sm btn-outline-warning">Desactivar</button>
                         </form>
                         {% else %}
+                        <form method="POST" action="{{ url_for('clients.activate', client_id=c.id) }}" class="d-inline"
+                              onsubmit="return confirm('¿Reactivar a {{ c.full_name }}?')">
+                            <button class="btn btn-sm btn-outline-success">
+                                <i class="fas fa-user-check me-1"></i>Reactivar
+                            </button>
+                        </form>
                         <form method="POST" action="{{ url_for('clients.delete', client_id=c.id) }}" class="d-inline"
                               onsubmit="return confirm('⚠️ ELIMINAR PERMANENTEMENTE a {{ c.full_name }}?\n\nSe borrarán todos sus pagos, asistencias y notificaciones.\nSu documento quedará libre para volver a registrarse.\n\nEsta acción NO se puede deshacer.')">
-                            <button class="btn btn-sm btn-danger">
+                            <button class="btn btn-sm btn-outline-danger">
                                 <i class="fas fa-trash me-1"></i>Eliminar
                             </button>
                         </form>

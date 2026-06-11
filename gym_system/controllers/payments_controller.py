@@ -247,6 +247,33 @@ class PaymentsController:
         flash('Pago eliminado.', 'warning')
         return redirect(url_for('payments.index'))
 
+    @staticmethod
+    def extend_days(payment_id):
+        """Agrega o quita días a la membresía de un cliente (modifica end_date)."""
+        from datetime import timedelta
+        payment = Payment.query.get_or_404(payment_id)
+        try:
+            days = int(request.form.get('days', 0))
+        except (ValueError, TypeError):
+            flash('Número de días inválido.', 'danger')
+            return redirect(url_for('clients.detail', client_id=payment.client_id))
+
+        if days == 0:
+            flash('Ingresa un número de días distinto de cero.', 'warning')
+            return redirect(url_for('clients.detail', client_id=payment.client_id))
+
+        old_end = payment.end_date
+        payment.end_date = payment.end_date + timedelta(days=days)
+        db.session.commit()
+        AuditService.log(
+            'update', 'payments', payment.id,
+            str(old_end),
+            f'end_date → {payment.end_date} ({days:+d} días)',
+        )
+        accion = f'agregaron {days}' if days > 0 else f'quitaron {abs(days)}'
+        flash(f'✅ Se {accion} días a {payment.client.full_name}. Nuevo vencimiento: {payment.end_date.strftime("%d/%m/%Y")}.', 'success')
+        return redirect(url_for('clients.detail', client_id=payment.client_id))
+
 
 # ──────────────────────────────────────────────────────────────────────
 # Helpers de email

@@ -100,7 +100,11 @@
                             {% if dias < 0 %}
                                 <span class="badge bg-secondary">Vencida</span>
                             {% elif dias == 0 %}
-                                <span class="badge bg-danger">Vence hoy</span>
+                                {% if p.membership and p.membership.membership_type == 'diario' %}
+                                <span class="badge" style="background-color:#fd7e14">Hoy</span>
+                                {% else %}
+                                <span class="badge bg-danger">Hoy</span>
+                                {% endif %}
                             {% elif dias <= 3 %}
                                 <span class="badge bg-warning text-dark">{{ dias }} día{{ 's' if dias != 1 }}</span>
                             {% else %}

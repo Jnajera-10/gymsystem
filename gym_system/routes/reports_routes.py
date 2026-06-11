@@ -4,6 +4,7 @@ from services.export_service import ExportService
 from utils.pdf_generator import generate_report_pdf
 from utils.security import login_required
 from database.models.payment import Payment
+from database.models.membership import Membership as MembershipModel
 from database.models.client import Client
 import pytz
 from datetime import datetime, timedelta
@@ -47,18 +48,33 @@ def index():
 
     clients_active  = Client.query.filter_by(is_active=True).count()
 
-    # Vencidos (para el recuadro de exportar)
+    # Por vencer (≤3 días) — excluye plan Diario
     warn_limit = today + timedelta(days=3)
-    expiring   = Payment.query.filter(
-        Payment.end_date >= today,
-        Payment.end_date <= warn_limit,
-        Payment.is_deleted == False,
-    ).order_by(Payment.end_date).all()
+    expiring   = (
+        Payment.query
+        .join(MembershipModel, Payment.membership_id == MembershipModel.id)
+        .filter(
+            Payment.end_date >= today,
+            Payment.end_date <= warn_limit,
+            Payment.is_deleted == False,
+            MembershipModel.membership_type != 'diario',
+        )
+        .order_by(Payment.end_date)
+        .all()
+    )
 
-    expired = Payment.query.filter(
-        Payment.end_date < today,
-        Payment.is_deleted == False,
-    ).order_by(Payment.end_date.desc()).all()
+    # Vencidas — excluye plan Diario
+    expired = (
+        Payment.query
+        .join(MembershipModel, Payment.membership_id == MembershipModel.id)
+        .filter(
+            Payment.end_date < today,
+            Payment.is_deleted == False,
+            MembershipModel.membership_type != 'diario',
+        )
+        .order_by(Payment.end_date.desc())
+        .all()
+    )
 
     return render_template(
         'reports/reports.html',
@@ -142,15 +158,22 @@ def pdf_sales():
                      mimetype='application/pdf')
 
 
-# ── Exportar vencidos / por vencer ──────────────────────────────────
+# ── Exportar vencidos / por vencer (excluye plan Diario) ─────────────
 @reports_bp.route('/excel/expired')
 @login_required
 def excel_expired():
     today = datetime.now(BOGOTA).date()
-    expired = Payment.query.filter(
-        Payment.end_date < today,
-        Payment.is_deleted == False,
-    ).order_by(Payment.end_date.desc()).all()
+    expired = (
+        Payment.query
+        .join(MembershipModel, Payment.membership_id == MembershipModel.id)
+        .filter(
+            Payment.end_date < today,
+            Payment.is_deleted == False,
+            MembershipModel.membership_type != 'diario',
+        )
+        .order_by(Payment.end_date.desc())
+        .all()
+    )
     buf = ExportService.export_expired_excel(expired, today)
     return send_file(buf, as_attachment=True, download_name='membresias_vencidas.xlsx',
                      mimetype='application/vnd.openxmlformats-officedocument.spreadsheetml.sheet')
@@ -161,11 +184,18 @@ def excel_expired():
 def excel_expiring():
     today      = datetime.now(BOGOTA).date()
     warn_limit = today + timedelta(days=3)
-    expiring   = Payment.query.filter(
-        Payment.end_date >= today,
-        Payment.end_date <= warn_limit,
-        Payment.is_deleted == False,
-    ).order_by(Payment.end_date).all()
+    expiring   = (
+        Payment.query
+        .join(MembershipModel, Payment.membership_id == MembershipModel.id)
+        .filter(
+            Payment.end_date >= today,
+            Payment.end_date <= warn_limit,
+            Payment.is_deleted == False,
+            MembershipModel.membership_type != 'diario',
+        )
+        .order_by(Payment.end_date)
+        .all()
+    )
     buf = ExportService.export_expired_excel(expiring, today, label='Por Vencer')
     return send_file(buf, as_attachment=True, download_name='membresias_por_vencer.xlsx',
                      mimetype='application/vnd.openxmlformats-officedocument.spreadsheetml.sheet')
@@ -175,10 +205,17 @@ def excel_expiring():
 @login_required
 def pdf_expired():
     today = datetime.now(BOGOTA).date()
-    expired = Payment.query.filter(
-        Payment.end_date < today,
-        Payment.is_deleted == False,
-    ).order_by(Payment.end_date.desc()).all()
+    expired = (
+        Payment.query
+        .join(MembershipModel, Payment.membership_id == MembershipModel.id)
+        .filter(
+            Payment.end_date < today,
+            Payment.is_deleted == False,
+            MembershipModel.membership_type != 'diario',
+        )
+        .order_by(Payment.end_date.desc())
+        .all()
+    )
     buf = generate_report_pdf('vencidos', expired, today=today)
     return send_file(buf, as_attachment=True, download_name='membresias_vencidas.pdf',
                      mimetype='application/pdf')
@@ -189,11 +226,18 @@ def pdf_expired():
 def pdf_expiring():
     today      = datetime.now(BOGOTA).date()
     warn_limit = today + timedelta(days=3)
-    expiring   = Payment.query.filter(
-        Payment.end_date >= today,
-        Payment.end_date <= warn_limit,
-        Payment.is_deleted == False,
-    ).order_by(Payment.end_date).all()
+    expiring   = (
+        Payment.query
+        .join(MembershipModel, Payment.membership_id == MembershipModel.id)
+        .filter(
+            Payment.end_date >= today,
+            Payment.end_date <= warn_limit,
+            Payment.is_deleted == False,
+            MembershipModel.membership_type != 'diario',
+        )
+        .order_by(Payment.end_date)
+        .all()
+    )
     buf = generate_report_pdf('por_vencer', expiring, today=today)
     return send_file(buf, as_attachment=True, download_name='membresias_por_vencer.pdf',
                      mimetype='application/pdf')

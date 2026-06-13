@@ -66,22 +66,28 @@ class PaymentsController:
                 Payment.shift.isnot(None),
                 Payment.shift == shift
             )
-            # Si filtra por turno pero no puso fecha, asumir HOY para no mostrar otros días
-            if not date_from and not date_to:
-                hoy = datetime.now(BOGOTA).date()
-                query = query.filter(Payment.payment_date == hoy)
+
+        # Aplicar filtro de fecha
+        hoy_date = datetime.now(BOGOTA).date()
 
         if date_from:
             try:
                 query = query.filter(Payment.payment_date >= datetime.strptime(date_from, '%Y-%m-%d').date())
             except ValueError:
-                pass
+                # Si el formato falla, usar hoy
+                query = query.filter(Payment.payment_date >= hoy_date)
+        elif shift:
+            # Si hay turno pero no hay date_from explícito, forzar hoy
+            query = query.filter(Payment.payment_date >= hoy_date)
 
         if date_to:
             try:
                 query = query.filter(Payment.payment_date <= datetime.strptime(date_to, '%Y-%m-%d').date())
             except ValueError:
                 pass
+        elif shift and not date_from:
+            # Si hay turno sin rango, limitar también por arriba a hoy
+            query = query.filter(Payment.payment_date <= hoy_date)
 
         pagination = query.order_by(Payment.payment_date.desc()).paginate(
             page=page, per_page=PER_PAGE, error_out=False

@@ -13,7 +13,6 @@ import pytz
 from datetime import datetime, timedelta, date as date_type
 
 BOGOTA = pytz.timezone('America/Bogota')
-JUNE_START = date_type(2026, 6, 1)
 
 
 class DashboardController:
@@ -21,6 +20,11 @@ class DashboardController:
     def index():
         now   = datetime.now(BOGOTA)
         today = now.date()
+
+        # Inicio del mes actual (reemplaza el antiguo JUNE_START hardcodeado).
+        # Se recalcula cada vez, así las cifras "desde inicio de mes" se
+        # reinician automáticamente cada mes sin tocar el código.
+        JUNE_START = date_type(today.year, today.month, 1)
 
         # ── Abrir caja (POST) ─────────────────────────────────────────
         if request.method == 'POST':

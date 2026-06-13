@@ -162,15 +162,9 @@ class ClientsController:
             flash(
                 f'⚠️ {client.full_name} tiene una membresía vigente hasta '
                 f'{active_payment.end_date.strftime("%d/%m/%Y")}. '
-                'Desactívalo igualmente solo si estás seguro.',
+                'Se desactivó de todas formas.',
                 'warning',
             )
-            from flask import session
-            confirm_key = f'confirm_deactivate_{client_id}'
-            if not session.get(confirm_key):
-                session[confirm_key] = True
-                return redirect(url_for('clients.index'))
-            session.pop(confirm_key, None)
 
         client.is_active = False
         db.session.commit()
@@ -195,6 +189,38 @@ class ClientsController:
         name = client.full_name
 
         # ---------------------------------------------------------------
+        # PROTECCIÓN DE INGRESOS DEL MES: si el cliente tiene pagos
+        # registrados dentro del mes actual, no se permite el borrado
+        # físico porque eliminaría esos montos de los reportes de
+        # ingresos (mes actual, "desde inicio de mes", etc.) de forma
+        # retroactiva y descuadraría la caja.
+        # En ese caso, solo se desactiva el cliente (igual que el botón
+        # "Desactivar").
+        # ---------------------------------------------------------------
+        today = datetime.now(BOGOTA).date()
+        month_start = date(today.year, today.month, 1)
+        has_month_payments = Payment.query.filter(
+            Payment.client_id == client_id,
+            Payment.payment_date >= month_start,
+            Payment.is_deleted == False,
+        ).first() is not None
+
+        if has_month_payments:
+            client.is_active = False
+            db.session.commit()
+            AuditService.log(
+                'update', 'clients', client.id, 'activo',
+                'inactivo (no se pudo eliminar: tiene pagos del mes actual)',
+            )
+            flash(
+                f'⚠️ {name} tiene pagos registrados este mes, así que no se '
+                'eliminó por completo (esto afectaría los reportes de ingresos). '
+                'Se desactivó en su lugar.',
+                'warning',
+            )
+            return redirect(url_for('clients.index'))
+
+        # ---------------------------------------------------------------
         # FIX FOREIGNKEYVIOLATION: hay que borrar en orden de dependencia.
         #
         # Árbol de FKs:
@@ -207,6 +233,13 @@ class ClientsController:
         #
         # sale_items referencia a sales, así que se elimina antes que sales.
         # ---------------------------------------------------------------
+
+        # 0. limpiar referencias "partner_client_id" en pagos de OTROS
+        #    clientes que apunten a este cliente (Plan Pareja), para no
+        #    dejar una FK colgando hacia un cliente eliminado.
+        Payment.query.filter_by(partner_client_id=client_id).update(
+            {Payment.partner_client_id: None}, synchronize_session=False
+        )
 
         # 1. sale_items de las ventas de este cliente
         sale_ids = [s.id for s in Sale.query.filter_by(client_id=client_id).all()]

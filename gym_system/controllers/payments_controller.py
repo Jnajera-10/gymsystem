@@ -269,10 +269,18 @@ class PaymentsController:
     @staticmethod
     def delete(payment_id):
         payment = Payment.query.get_or_404(payment_id)
-        payment.is_deleted = True
+        mirror = PaymentService.soft_delete_payment(payment)
         db.session.commit()
         AuditService.log('delete', 'payments', payment.id, str(payment.amount), 'eliminado')
-        flash('Pago eliminado.', 'warning')
+        if mirror:
+            AuditService.log(
+                'delete', 'payments', mirror.id,
+                str(mirror.amount),
+                f'eliminado (espejo Plan Pareja del pago #{payment.id})',
+            )
+            flash('Pago eliminado (incluyendo el registro espejo del Plan Pareja).', 'warning')
+        else:
+            flash('Pago eliminado.', 'warning')
         return redirect(url_for('payments.index'))
 
     @staticmethod

@@ -81,13 +81,16 @@ class PaymentService:
         from utils.helpers import serialize_payment_split, primary_payment_method
         payment_method_str = serialize_payment_split(split_parts)
 
-        # Vuelto solo si hay efectivo
+        # Vuelto solo si hay efectivo. Se compara contra el monto que
+        # corresponde a efectivo (efectivo_amount), no contra el total
+        # del pago, porque en pagos mixtos el cliente solo entrega
+        # efectivo por su parte en efectivo.
         efectivo_amount = sum(a for m, a in split_parts if m == 'efectivo')
         if efectivo_amount > 0:
             try:
                 cash_received = float(form_data.get('cash_received') or 0) or None
                 if cash_received:
-                    cash_change = max(0, cash_received - float(form_data['amount']))
+                    cash_change = max(0, cash_received - efectivo_amount)
             except (ValueError, TypeError):
                 pass
 
@@ -218,3 +221,36 @@ class PaymentService:
             Payment.payment_date >= since_date,
             Payment.is_deleted   == False,
         ).all()
+
+    # ------------------------------------------------------------------
+    # Eliminación (soft delete) con cascada para Plan Pareja
+    # ------------------------------------------------------------------
+    @staticmethod
+    def soft_delete_payment(payment):
+        """Marca el pago como eliminado y, si es Plan Pareja, también marca
+        como eliminado el pago "espejo" del otro cliente, para que no quede
+        contando como membresía activa de forma fantasma.
+
+        Retorna el pago espejo afectado (o None si no aplica), para que el
+        llamador pueda registrar el log de auditoría correspondiente.
+        """
+        payment.is_deleted = True
+
+        mirror = None
+        if payment.partner_client_id:
+            # Buscar el pago espejo: mismo membership_id, mismas fechas,
+            # y cuyo client_id sea el partner_client_id de este pago
+            # (o que apunte de vuelta a este pago como partner).
+            mirror = Payment.query.filter(
+                Payment.client_id == payment.partner_client_id,
+                Payment.partner_client_id == payment.client_id,
+                Payment.membership_id == payment.membership_id,
+                Payment.start_date == payment.start_date,
+                Payment.end_date == payment.end_date,
+                Payment.is_deleted == False,
+                Payment.id != payment.id,
+            ).first()
+            if mirror:
+                mirror.is_deleted = True
+
+        return mirror

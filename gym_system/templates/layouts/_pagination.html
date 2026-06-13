@@ -1,22 +1,32 @@
 {% if pagination and pagination.pages > 1 %}
+{# Construir query string conservando TODOS los filtros activos menos 'page' #}
+{% set qs_parts = [] %}
+{% for key, val in request.args.items() %}
+  {% if key != 'page' and val %}
+    {% set _ = qs_parts.append(key ~ '=' ~ val) %}
+  {% endif %}
+{% endfor %}
+{% set qs = qs_parts | join('&') %}
+{% set qs_sep = '&' if qs else '' %}
+
 <nav class="mt-3 d-print-none">
     <ul class="pagination pagination-sm justify-content-center mb-0">
         <li class="page-item {{ 'disabled' if not pagination.has_prev }}">
-            <a class="page-link" href="{{ request.path }}?page={{ pagination.prev_num }}{% if request.args.get('q') %}&q={{ request.args.get('q') }}{% endif %}{% if request.args.get('inactivos') %}&inactivos={{ request.args.get('inactivos') }}{% endif %}">
+            <a class="page-link" href="{{ request.path }}?{{ qs }}{{ qs_sep }}page={{ pagination.prev_num }}">
                 <i class="fas fa-chevron-left"></i>
             </a>
         </li>
         {% for p in pagination.iter_pages(left_edge=1, right_edge=1, left_current=2, right_current=2) %}
             {% if p %}
             <li class="page-item {{ 'active' if p == pagination.page }}">
-                <a class="page-link" href="{{ request.path }}?page={{ p }}{% if request.args.get('q') %}&q={{ request.args.get('q') }}{% endif %}{% if request.args.get('inactivos') %}&inactivos={{ request.args.get('inactivos') }}{% endif %}">{{ p }}</a>
+                <a class="page-link" href="{{ request.path }}?{{ qs }}{{ qs_sep }}page={{ p }}">{{ p }}</a>
             </li>
             {% else %}
             <li class="page-item disabled"><span class="page-link">…</span></li>
             {% endif %}
         {% endfor %}
         <li class="page-item {{ 'disabled' if not pagination.has_next }}">
-            <a class="page-link" href="{{ request.path }}?page={{ pagination.next_num }}{% if request.args.get('q') %}&q={{ request.args.get('q') }}{% endif %}{% if request.args.get('inactivos') %}&inactivos={{ request.args.get('inactivos') }}{% endif %}">
+            <a class="page-link" href="{{ request.path }}?{{ qs }}{{ qs_sep }}page={{ pagination.next_num }}">
                 <i class="fas fa-chevron-right"></i>
             </a>
         </li>

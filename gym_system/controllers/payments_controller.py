@@ -27,6 +27,7 @@ class PaymentsController:
         method      = request.args.get('method', '').strip()
         date_from   = request.args.get('date_from', '').strip()
         date_to     = request.args.get('date_to', '').strip()
+        shift       = request.args.get('shift', '').strip()
 
         query = Payment.query.filter_by(is_deleted=False)
 
@@ -92,6 +93,7 @@ class PaymentsController:
             today             = today,
             q                 = q,
             plan_filter       = plan_filter,
+            shift             = shift,
             method            = method,
             date_from         = date_from,
             date_to           = date_to,

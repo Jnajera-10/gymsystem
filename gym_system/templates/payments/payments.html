@@ -55,6 +55,14 @@
                 <label class="form-label small mb-1 text-muted">Hasta</label>
                 <input type="date" name="date_to" value="{{ date_to }}" class="form-control form-control-sm">
             </div>
+            <div class="col-6 col-md-2">
+                <label class="form-label small mb-1 text-muted">Turno</label>
+                <select name="shift" class="form-select form-select-sm">
+                    <option value="">Todos</option>
+                    <option value="mañana"  {{ 'selected' if shift == 'mañana' }}>☀️ Mañana</option>
+                    <option value="tarde"   {{ 'selected' if shift == 'tarde' }}>🌙 Tarde</option>
+                </select>
+            </div>
             <div class="col-12 col-md-1 d-flex gap-1">
                 <button type="submit" class="btn btn-primary btn-sm w-100">
                     <i class="fas fa-search"></i>
@@ -111,7 +119,25 @@
                                 <span class="badge bg-success">{{ dias }} días</span>
                             {% endif %}
                         </td>
-                        <td>{{ p.payment_method }}</td>
+                        <td>
+                            {% set ICONOS = {
+                                'efectivo':      '💵',
+                                'nequi':         '📱',
+                                'transferencia': '🏦',
+                                'tarjeta':       '💳',
+                                'datafono':      '🖥',
+                                'daviplata':     '📲',
+                            } %}
+                            {% set parts = [] %}
+                            {% if p.payment_method %}
+                                {% for chunk in p.payment_method.split('|') %}
+                                    {% set pieces = chunk.split(':') %}
+                                    {% set met = pieces[0].strip() %}
+                                    {% set _ = parts.append((ICONOS.get(met, '💰') ~ ' ' ~ met | capitalize)) %}
+                                {% endfor %}
+                            {% endif %}
+                            <span class="small">{{ parts | join(' + ') or '—' }}</span>
+                        </td>
                         <td>
                             <a href="{{ url_for('payments.receipt', payment_id=p.id) }}"
                                class="btn btn-sm btn-outline-primary">

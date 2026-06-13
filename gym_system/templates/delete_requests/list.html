@@ -1,0 +1,223 @@
+{% extends 'layouts/base.html' %}
+{% block title %}Solicitudes de Eliminación{% endblock %}
+{% block content %}
+
+<div class="d-flex justify-content-between align-items-center mb-4">
+    <h4 class="mb-0"><i class="fas fa-trash-alt me-2 text-danger"></i>Solicitudes de Eliminación de Pagos</h4>
+    <a href="{{ url_for('audit.index') }}" class="btn btn-sm btn-outline-secondary">
+        <i class="fas fa-history me-1"></i>Ver Auditoría
+    </a>
+</div>
+
+{# ── Pendientes ── #}
+<div class="card shadow-sm border-danger mb-4">
+    <div class="card-header bg-danger bg-opacity-10 fw-semibold text-danger d-flex align-items-center gap-2">
+        <i class="fas fa-clock"></i>
+        Pendientes de revisión
+        {% if pendientes %}
+        <span class="badge bg-danger">{{ pendientes|length }}</span>
+        {% endif %}
+    </div>
+    <div class="card-body p-0">
+        {% if pendientes %}
+        <table class="table table-hover mb-0 align-middle">
+            <thead class="table-light">
+                <tr>
+                    <th>#</th>
+                    <th>Pago</th>
+                    <th>Cliente</th>
+                    <th>Monto</th>
+                    <th>Solicitado por</th>
+                    <th>Justificación</th>
+                    <th>Fecha solicitud</th>
+                    <th>Acción</th>
+                </tr>
+            </thead>
+            <tbody>
+            {% for dr in pendientes %}
+                <tr>
+                    <td class="text-muted small">{{ dr.id }}</td>
+                    <td class="small">#{{ dr.payment_id }}</td>
+                    <td class="fw-semibold small">
+                        {{ dr.payment.client.full_name if dr.payment and dr.payment.client else '—' }}
+                    </td>
+                    <td class="text-success fw-semibold small">
+                        ${{ '{:,.0f}'.format(dr.payment.amount) if dr.payment else '—' }}
+                    </td>
+                    <td>
+                        <span class="badge bg-secondary">{{ dr.requester.username if dr.requester else '—' }}</span>
+                    </td>
+                    <td class="small" style="max-width:220px;">
+                        <span class="text-muted fst-italic">"{{ dr.justification }}"</span>
+                    </td>
+                    <td class="small text-muted">{{ dr.created_at.strftime('%d/%m/%Y %H:%M') }}</td>
+                    <td>
+                        <div class="d-flex gap-1">
+                            {# Aprobar #}
+                            <button class="btn btn-sm btn-success py-0 px-2"
+                                    data-bs-toggle="modal"
+                                    data-bs-target="#modalAprobar"
+                                    data-dr-id="{{ dr.id }}"
+                                    data-cliente="{{ dr.payment.client.full_name if dr.payment and dr.payment.client else '?' }}"
+                                    data-monto="${{ '{:,.0f}'.format(dr.payment.amount) if dr.payment else '?' }}"
+                                    data-justificacion="{{ dr.justification }}">
+                                <i class="fas fa-check me-1"></i>Aprobar
+                            </button>
+                            {# Rechazar #}
+                            <button class="btn btn-sm btn-outline-danger py-0 px-2"
+                                    data-bs-toggle="modal"
+                                    data-bs-target="#modalRechazar"
+                                    data-dr-id="{{ dr.id }}"
+                                    data-cliente="{{ dr.payment.client.full_name if dr.payment and dr.payment.client else '?' }}"
+                                    data-justificacion="{{ dr.justification }}">
+                                <i class="fas fa-times me-1"></i>Rechazar
+                            </button>
+                        </div>
+                    </td>
+                </tr>
+            {% endfor %}
+            </tbody>
+        </table>
+        {% else %}
+        <div class="p-4 text-center text-muted">
+            <i class="fas fa-check-circle fa-2x text-success mb-2"></i><br>
+            No hay solicitudes pendientes.
+        </div>
+        {% endif %}
+    </div>
+</div>
+
+{# ── Historial ── #}
+{% if historial %}
+<div class="card shadow-sm mb-4">
+    <div class="card-header fw-semibold d-flex align-items-center gap-2">
+        <i class="fas fa-history text-secondary"></i> Historial reciente (últimas 30)
+    </div>
+    <div class="card-body p-0">
+        <table class="table table-sm table-hover mb-0 align-middle">
+            <thead class="table-light">
+                <tr>
+                    <th>Cliente</th>
+                    <th>Monto</th>
+                    <th>Solicitó</th>
+                    <th>Justificación</th>
+                    <th>Estado</th>
+                    <th>Revisó</th>
+                    <th>Nota admin</th>
+                    <th>Fecha</th>
+                </tr>
+            </thead>
+            <tbody>
+            {% for dr in historial %}
+            <tr>
+                <td class="small fw-semibold">
+                    {{ dr.payment.client.full_name if dr.payment and dr.payment.client else '—' }}
+                </td>
+                <td class="small">${{ '{:,.0f}'.format(dr.payment.amount) if dr.payment else '—' }}</td>
+                <td><span class="badge bg-secondary small">{{ dr.requester.username if dr.requester else '—' }}</span></td>
+                <td class="small text-muted fst-italic" style="max-width:180px;">"{{ dr.justification }}"</td>
+                <td>
+                    {% if dr.status == 'aprobada' %}
+                    <span class="badge bg-success">✅ Aprobada</span>
+                    {% else %}
+                    <span class="badge bg-danger">❌ Rechazada</span>
+                    {% endif %}
+                </td>
+                <td class="small">{{ dr.reviewer.username if dr.reviewer else '—' }}</td>
+                <td class="small text-muted">{{ dr.review_note or '—' }}</td>
+                <td class="small text-muted">{{ dr.reviewed_at.strftime('%d/%m/%Y %H:%M') if dr.reviewed_at else '—' }}</td>
+            </tr>
+            {% endfor %}
+            </tbody>
+        </table>
+    </div>
+</div>
+{% endif %}
+
+{# ── Modal Aprobar ── #}
+<div class="modal fade" id="modalAprobar" tabindex="-1" aria-hidden="true">
+    <div class="modal-dialog modal-dialog-centered">
+        <div class="modal-content">
+            <div class="modal-header bg-success bg-opacity-10">
+                <h5 class="modal-title text-success"><i class="fas fa-check-circle me-2"></i>Aprobar eliminación</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <form method="POST" id="formAprobar">
+                <div class="modal-body">
+                    <p class="mb-1">Cliente: <strong id="ap-cliente"></strong></p>
+                    <p class="mb-3">Monto: <strong class="text-success" id="ap-monto"></strong></p>
+                    <div class="alert alert-warning py-2 small mb-3">
+                        <i class="fas fa-quote-left me-1"></i>
+                        <em id="ap-justificacion"></em>
+                    </div>
+                    <div class="mb-2">
+                        <label class="form-label fw-semibold">Nota del administrador (opcional)</label>
+                        <textarea name="review_note" class="form-control" rows="2"
+                                  placeholder="Ej: Verificado, el pago fue un error..."></textarea>
+                    </div>
+                    <p class="text-danger small mb-0"><i class="fas fa-exclamation-triangle me-1"></i>Esta acción eliminará el pago permanentemente.</p>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancelar</button>
+                    <button type="submit" class="btn btn-success"><i class="fas fa-check me-1"></i>Confirmar aprobación</button>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
+
+{# ── Modal Rechazar ── #}
+<div class="modal fade" id="modalRechazar" tabindex="-1" aria-hidden="true">
+    <div class="modal-dialog modal-dialog-centered">
+        <div class="modal-content">
+            <div class="modal-header bg-danger bg-opacity-10">
+                <h5 class="modal-title text-danger"><i class="fas fa-times-circle me-2"></i>Rechazar solicitud</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <form method="POST" id="formRechazar">
+                <div class="modal-body">
+                    <p class="mb-1">Cliente: <strong id="rj-cliente"></strong></p>
+                    <div class="alert alert-secondary py-2 small mb-3">
+                        <i class="fas fa-quote-left me-1"></i>
+                        <em id="rj-justificacion"></em>
+                    </div>
+                    <div class="mb-2">
+                        <label class="form-label fw-semibold">Motivo del rechazo (opcional)</label>
+                        <textarea name="review_note" class="form-control" rows="2"
+                                  placeholder="Ej: El pago es correcto, no procede..."></textarea>
+                    </div>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancelar</button>
+                    <button type="submit" class="btn btn-danger"><i class="fas fa-times me-1"></i>Confirmar rechazo</button>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
+
+<script>
+(function() {
+    const modalAp = document.getElementById('modalAprobar');
+    const modalRj = document.getElementById('modalRechazar');
+
+    modalAp.addEventListener('show.bs.modal', function(e) {
+        const btn = e.relatedTarget;
+        const drId = btn.dataset.drId;
+        document.getElementById('ap-cliente').textContent       = btn.dataset.cliente;
+        document.getElementById('ap-monto').textContent         = btn.dataset.monto;
+        document.getElementById('ap-justificacion').textContent = btn.dataset.justificacion;
+        document.getElementById('formAprobar').action = `/delete-requests/${drId}/approve`;
+    });
+
+    modalRj.addEventListener('show.bs.modal', function(e) {
+        const btn = e.relatedTarget;
+        const drId = btn.dataset.drId;
+        document.getElementById('rj-cliente').textContent       = btn.dataset.cliente;
+        document.getElementById('rj-justificacion').textContent = btn.dataset.justificacion;
+        document.getElementById('formRechazar').action = `/delete-requests/${drId}/reject`;
+    });
+})();
+</script>
+
+{% endblock %}

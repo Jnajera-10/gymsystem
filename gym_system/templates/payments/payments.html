@@ -117,15 +117,17 @@
                                class="btn btn-sm btn-outline-primary">
                                 <i class="fas fa-receipt me-1"></i>Recibo
                             </a>
-                            {% if session.get('user_role') == 'admin' %}
-                            <form method="POST" action="{{ url_for('payments.delete', payment_id=p.id) }}"
-                                  class="d-inline"
-                                  onsubmit="return confirm('¿Eliminar este pago?')">
-                                <button class="btn btn-sm btn-outline-danger">
-                                    <i class="fas fa-trash"></i>
-                                </button>
-                            </form>
-                            {% endif %}
+                            {# ── Eliminar / Solicitar eliminación ── #}
+                            <button class="btn btn-sm btn-outline-danger"
+                                    data-bs-toggle="modal"
+                                    data-bs-target="#modalSolicitarElim"
+                                    data-payment-id="{{ p.id }}"
+                                    data-cliente="{{ p.client.full_name if p.client else '?' }}"
+                                    data-monto="${{ '{:,.0f}'.format(p.amount) }}"
+                                    data-plan="{{ p.membership.name if p.membership else '?' }}"
+                                    title="{% if session.get('user_role') == 'admin' %}Eliminar pago{% else %}Solicitar eliminación{% endif %}">
+                                <i class="fas fa-trash"></i>
+                            </button>
                         </td>
                     </tr>
                     {% else %}
@@ -141,4 +143,88 @@
     </div>
 </div>
 {% include 'layouts/_pagination.html' %}
+{# ── Modal: Solicitar / Confirmar eliminación de pago ───────────────── #}
+<div class="modal fade" id="modalSolicitarElim" tabindex="-1" aria-hidden="true">
+    <div class="modal-dialog modal-dialog-centered">
+        <div class="modal-content">
+            <div class="modal-header bg-danger bg-opacity-10">
+                <h5 class="modal-title text-danger">
+                    <i class="fas fa-trash-alt me-2"></i>
+                    {% if session.get('user_role') == 'admin' %}
+                    Eliminar pago
+                    {% else %}
+                    Solicitar eliminación de pago
+                    {% endif %}
+                </h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <form method="POST" id="formEliminar">
+                <div class="modal-body">
+                    <p class="mb-1">Cliente: <strong id="elim-cliente"></strong></p>
+                    <p class="mb-3">
+                        Plan: <span class="badge bg-secondary" id="elim-plan"></span>
+                        &nbsp; Monto: <strong class="text-success" id="elim-monto"></strong>
+                    </p>
+
+                    {% if session.get('user_role') != 'admin' %}
+                    <div class="alert alert-info py-2 small mb-3">
+                        <i class="fas fa-info-circle me-1"></i>
+                        No tienes permiso para eliminar pagos directamente.
+                        Tu solicitud será enviada al administrador para aprobación.
+                    </div>
+                    {% endif %}
+
+                    <div class="mb-2">
+                        <label class="form-label fw-semibold">
+                            Justificación <span class="text-danger">*</span>
+                        </label>
+                        <textarea name="justification" class="form-control" rows="3" required
+                                  placeholder="Describe el motivo de la eliminación (error de registro, pago duplicado, etc.)..."></textarea>
+                        <div class="form-text">Mínimo explica brevemente el motivo.</div>
+                    </div>
+
+                    {% if session.get('user_role') == 'admin' %}
+                    <p class="text-danger small mb-0">
+                        <i class="fas fa-exclamation-triangle me-1"></i>
+                        Como administrador, el pago se eliminará inmediatamente y quedará en auditoría.
+                    </p>
+                    {% else %}
+                    <p class="text-muted small mb-0">
+                        <i class="fas fa-clock me-1"></i>
+                        El administrador recibirá la notificación y podrá aprobar o rechazar.
+                    </p>
+                    {% endif %}
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancelar</button>
+                    <button type="submit" class="btn btn-danger">
+                        {% if session.get('user_role') == 'admin' %}
+                        <i class="fas fa-trash me-1"></i>Eliminar
+                        {% else %}
+                        <i class="fas fa-paper-plane me-1"></i>Enviar solicitud
+                        {% endif %}
+                    </button>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
+
+<script>
+(function() {
+    const modal = document.getElementById('modalSolicitarElim');
+    if (!modal) return;
+    modal.addEventListener('show.bs.modal', function(e) {
+        const btn = e.relatedTarget;
+        document.getElementById('elim-cliente').textContent = btn.dataset.cliente;
+        document.getElementById('elim-plan').textContent    = btn.dataset.plan;
+        document.getElementById('elim-monto').textContent   = btn.dataset.monto;
+        document.getElementById('formEliminar').action =
+            `/delete-requests/request/${btn.dataset.paymentId}`;
+        // Limpiar textarea al abrir
+        modal.querySelector('textarea[name="justification"]').value = '';
+    });
+})();
+</script>
+
 {% endblock %}

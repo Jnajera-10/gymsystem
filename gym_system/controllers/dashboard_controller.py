@@ -179,6 +179,18 @@ class DashboardController:
         morning_income   = sum(p.amount for p in today_payments if p.shift == SHIFT_MORNING)
         afternoon_income = sum(p.amount for p in today_payments if p.shift == SHIFT_AFTERNOON)
 
+        # ── Desglose por método × turno ───────────────────────────────
+        # shift_breakdown = { 'efectivo': {'mañana': X, 'tarde': Y}, ... }
+        shift_breakdown = {}
+        for p in today_payments:
+            from utils.helpers import parse_payment_split
+            turno = p.shift or SHIFT_MORNING
+            for method, monto in parse_payment_split(p.payment_method):
+                val = monto if monto is not None else p.amount
+                if method not in shift_breakdown:
+                    shift_breakdown[method] = {SHIFT_MORNING: 0, SHIFT_AFTERNOON: 0}
+                shift_breakdown[method][turno] = shift_breakdown[method].get(turno, 0) + val
+
         # Ganancia neta del día = ingresos membresías + inventario - base - egresos
         net_income = (stats['today_income'] + today_inventory_income
                       - (opening_cash or 0) - today_expenses_total)
@@ -227,6 +239,7 @@ class DashboardController:
             opening_cash            = opening_cash,
             morning_income          = morning_income,
             afternoon_income        = afternoon_income,
+            shift_breakdown         = shift_breakdown,
             net_income              = net_income,
             # Egresos
             today_expenses_list     = today_expenses_list,

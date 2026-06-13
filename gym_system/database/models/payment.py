@@ -23,7 +23,7 @@ class Payment(db.Model):
     payment_date     = db.Column(db.Date, default=lambda: datetime.now(BOGOTA).date())
     start_date       = db.Column(db.Date, nullable=False)
     end_date         = db.Column(db.Date, nullable=False)   # último día INCLUSIVE (vence 23:59)
-    payment_method   = db.Column(db.String(30), default='efectivo')
+    payment_method   = db.Column(db.String(120), default='efectivo')
     notes            = db.Column(db.Text)
     is_deleted       = db.Column(db.Boolean, default=False)
     created_at       = db.Column(db.DateTime, default=lambda: datetime.now(BOGOTA))

@@ -63,6 +63,30 @@ def create_app():
     with app.app_context():
         db.create_all()
 
+        # ── Migración automática: payment_method VARCHAR(30) → VARCHAR(120) ──
+        # Necesario porque los pagos divididos (ej. "efectivo:50000|nequi:30000")
+        # pueden superar 30 caracteres. Se ejecuta en cada arranque; es
+        # idempotente (no hace nada si la columna ya es VARCHAR(120) o mayor).
+        try:
+            from sqlalchemy import text, inspect
+            inspector = inspect(db.engine)
+            columns = inspector.get_columns('payments')
+            payment_method_col = next(
+                (c for c in columns if c['name'] == 'payment_method'), None
+            )
+            current_length = getattr(payment_method_col['type'], 'length', None) \
+                if payment_method_col else None
+            if current_length is not None and current_length < 120:
+                with db.engine.connect() as conn:
+                    conn.execute(text(
+                        "ALTER TABLE payments ALTER COLUMN payment_method TYPE VARCHAR(120)"
+                    ))
+                    conn.commit()
+        except Exception:
+            # No bloquear el arranque de la app si la migración falla
+            # (ej. tabla aún no existe en el primer deploy).
+            pass
+
     return app
 
 application = create_app()

@@ -240,6 +240,26 @@ def pdf_expired():
                      mimetype='application/pdf')
 
 
+@reports_bp.route('/pdf/expiring')
+@login_required
+def pdf_expiring():
+    today      = datetime.now(BOGOTA).date()
+    warn_limit = today + timedelta(days=3)
+    expiring   = (
+        Payment.query
+        .join(MembershipModel, Payment.membership_id == MembershipModel.id)
+        .filter(
+            Payment.end_date >= today,
+            Payment.end_date <= warn_limit,
+            Payment.is_deleted == False,
+            MembershipModel.membership_type != 'diario',
+        )
+        .order_by(Payment.end_date)
+        .all()
+    )
+    buf = generate_report_pdf('por_vencer', expiring, today=today)
+    return send_file(buf, as_attachment=True, download_name='membresias_por_vencer.pdf',
+                     mimetype='application/pdf')
 
 
 @reports_bp.route('/pdf/cierre-caja')

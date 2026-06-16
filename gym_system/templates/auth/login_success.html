@@ -1,546 +1,356 @@
 <!DOCTYPE html>
 <html lang="es">
 <head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Bienvenido - Body-Fit</title>
-    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.0/css/all.min.css">
-    <style>
-        * { margin: 0; padding: 0; box-sizing: border-box; }
-
-        body {
-            min-height: 100vh;
-            background: #050d18;
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            font-family: 'Segoe UI', system-ui, sans-serif;
-            overflow: hidden;
-        }
-
-        /* Fondo */
-        .bg-gradient {
-            position: fixed;
-            inset: 0;
-            background:
-                radial-gradient(ellipse 100% 60% at 50% 100%, rgba(0,80,40,0.5) 0%, transparent 60%),
-                radial-gradient(ellipse 60% 40% at 20% 60%, rgba(180,10,40,0.2) 0%, transparent 55%),
-                radial-gradient(ellipse 60% 40% at 80% 60%, rgba(180,10,40,0.15) 0%, transparent 55%),
-                linear-gradient(180deg, #03080f 0%, #071120 40%, #0a1a30 70%);
-            z-index: 0;
-        }
-        .field-lines {
-            position: fixed;
-            inset: 0;
-            z-index: 1;
-            opacity: 0.04;
-            background-image:
-                repeating-linear-gradient(0deg, transparent, transparent 80px, rgba(255,255,255,0.8) 80px, rgba(255,255,255,0.8) 81px),
-                repeating-linear-gradient(90deg, transparent, transparent 80px, rgba(255,255,255,0.8) 80px, rgba(255,255,255,0.8) 81px);
-        }
-        .top-stripe {
-            position: fixed;
-            top: 0; left: 0; right: 0;
-            height: 5px;
-            background: linear-gradient(90deg, #FF0000 33%, #BF0A30 33% 66%, #006847 66%);
-            z-index: 100;
-        }
-
-        /* Contenedor principal */
-        .scene {
-            position: relative;
-            z-index: 10;
-            display: flex;
-            flex-direction: column;
-            align-items: center;
-            gap: 24px;
-            padding: 20px;
-        }
-
-        /* Texto de bienvenida */
-        .welcome-text {
-            text-align: center;
-            animation: fadeDown 0.6s ease forwards;
-        }
-        .welcome-text h1 {
-            font-size: 2rem;
-            font-weight: 900;
-            color: #fff;
-            letter-spacing: 0.06em;
-            text-shadow: 0 0 30px rgba(245,197,24,0.3);
-        }
-        .welcome-text h1 span { color: #f5c518; }
-        .welcome-text p {
-            color: rgba(255,255,255,0.45);
-            font-size: 0.9rem;
-            letter-spacing: 0.15em;
-            text-transform: uppercase;
-            margin-top: 6px;
-        }
-
-        /* Campo de fútbol SVG */
-        .field-container {
-            width: min(520px, 94vw);
-            animation: fadeUp 0.6s ease 0.2s both;
-        }
-
-        /* Barra de progreso */
-        .progress-wrap {
-            width: min(320px, 80vw);
-            animation: fadeUp 0.5s ease 0.4s both;
-        }
-        .progress-label {
-            display: flex;
-            justify-content: space-between;
-            color: rgba(255,255,255,0.3);
-            font-size: 0.75rem;
-            letter-spacing: 0.12em;
-            text-transform: uppercase;
-            margin-bottom: 8px;
-        }
-        .progress-track {
-            height: 4px;
-            background: rgba(255,255,255,0.06);
-            border-radius: 2px;
-            overflow: hidden;
-        }
-        .progress-bar {
-            height: 100%;
-            width: 0%;
-            border-radius: 2px;
-            background: linear-gradient(90deg, #006847, #1a9b5c, #f5c518);
-            transition: width 0.1s linear;
-        }
-
-        /* Partículas de gol */
-        .particle {
-            position: fixed;
-            width: 8px; height: 8px;
-            border-radius: 50%;
-            pointer-events: none;
-            z-index: 50;
-            opacity: 0;
-        }
-
-        /* Overlay "GOL!" */
-        .gol-overlay {
-            position: fixed;
-            inset: 0;
-            z-index: 200;
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            pointer-events: none;
-            opacity: 0;
-        }
-        .gol-text {
-            font-size: clamp(4rem, 15vw, 9rem);
-            font-weight: 900;
-            color: #f5c518;
-            letter-spacing: 0.08em;
-            text-shadow:
-                0 0 40px rgba(245,197,24,0.8),
-                0 0 80px rgba(245,197,24,0.4),
-                0 4px 0 rgba(0,0,0,0.5);
-            transform: scale(0.3) rotate(-5deg);
-            transition: transform 0.3s cubic-bezier(0.175,0.885,0.32,1.275), opacity 0.2s;
-        }
-        .gol-overlay.show { opacity: 1; }
-        .gol-overlay.show .gol-text { transform: scale(1) rotate(-3deg); }
-        .gol-overlay.hide { opacity: 0; transition: opacity 0.4s ease; }
-
-        @keyframes fadeDown {
-            from { opacity: 0; transform: translateY(-20px); }
-            to   { opacity: 1; transform: translateY(0); }
-        }
-        @keyframes fadeUp {
-            from { opacity: 0; transform: translateY(20px); }
-            to   { opacity: 1; transform: translateY(0); }
-        }
-
-        /* SVG — jugador y balón */
-        #soccer-field {
-            width: 100%;
-            height: auto;
-            display: block;
-        }
-
-        /* Animaciones SVG */
-        /* Balón: se mueve hacia el arco */
-        #ball {
-            transform-origin: center;
-            animation: none;
-        }
-        #ball.kick-phase { animation: ballKick 1.1s cubic-bezier(0.25,0.46,0.45,0.94) forwards; }
-        #ball.idle-bounce { animation: ballBounce 1.4s ease-in-out infinite; }
-
-        @keyframes ballKick {
-            0%   { transform: translate(0,0) rotate(0deg); }
-            15%  { transform: translate(8px, -10px) rotate(60deg); }
-            100% { transform: translate(230px, -35px) rotate(900deg); }
-        }
-        @keyframes ballBounce {
-            0%,100% { transform: translateY(0); }
-            50%      { transform: translateY(-6px); }
-        }
-
-        /* Jugador: pierna de patada */
-        #leg-kick {
-            transform-origin: 10px 5px;
-            animation: legSwing 0.45s ease-out 0s 1 forwards;
-        }
-        #leg-kick.reset { animation: legReturn 0.35s ease-in-out 0s 1 forwards; }
-
-        @keyframes legSwing {
-            0%   { transform: rotate(-30deg); }
-            40%  { transform: rotate(60deg); }
-            100% { transform: rotate(40deg); }
-        }
-        @keyframes legReturn {
-            from { transform: rotate(40deg); }
-            to   { transform: rotate(-30deg); }
-        }
-
-        /* Jugador: cuerpo inclina al patear */
-        #player-body {
-            transform-origin: 50% 60%;
-            animation: bodyLean 0.45s ease-out 0s 1 forwards;
-        }
-        #player-body.reset { animation: bodyReturn 0.35s ease 0s 1 forwards; }
-
-        @keyframes bodyLean {
-            0%   { transform: rotate(0deg); }
-            100% { transform: rotate(15deg); }
-        }
-        @keyframes bodyReturn {
-            from { transform: rotate(15deg); }
-            to   { transform: rotate(0deg); }
-        }
-
-        /* Red de arco cuando entra el balón */
-        #net-shake {
-            animation: none;
-        }
-        #net-shake.shake {
-            animation: netShake 0.4s ease-in-out;
-        }
-        @keyframes netShake {
-            0%,100% { transform: translateX(0); }
-            20%  { transform: translateX(4px) scaleX(1.03); }
-            40%  { transform: translateX(-3px); }
-            60%  { transform: translateX(2px); }
-            80%  { transform: translateX(-1px); }
-        }
-
-        /* Destello en el arco al gol */
-        #goal-flash {
-            opacity: 0;
-        }
-        #goal-flash.flash {
-            animation: goalFlash 0.5s ease-out forwards;
-        }
-        @keyframes goalFlash {
-            0%   { opacity: 0.9; }
-            100% { opacity: 0; }
-        }
-    </style>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Acceso exitoso</title>
+<style>
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  body {
+    background: linear-gradient(135deg, #0f0c29, #302b63, #24243e);
+    min-height: 100vh;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-family: 'Segoe UI', sans-serif;
+  }
+  .card {
+    background: rgba(255,255,255,0.05);
+    border: 1px solid rgba(255,255,255,0.1);
+    border-radius: 20px;
+    padding: 36px 40px;
+    width: 460px;
+    max-width: 95vw;
+    backdrop-filter: blur(12px);
+    text-align: center;
+    box-shadow: 0 20px 60px rgba(0,0,0,0.4);
+  }
+  h1 {
+    color: #fff;
+    font-size: 22px;
+    font-weight: 600;
+    margin-bottom: 4px;
+    letter-spacing: 0.3px;
+  }
+  .subtitle {
+    color: #aaa;
+    font-size: 13px;
+    margin-bottom: 20px;
+  }
+  #anim-svg {
+    width: 100%;
+    height: auto;
+    display: block;
+    border-radius: 12px;
+    overflow: visible;
+  }
+  .progress-wrap {
+    margin-top: 16px;
+  }
+  .progress-label {
+    color: #888;
+    font-size: 12px;
+    margin-bottom: 6px;
+  }
+  .progress-track {
+    background: rgba(255,255,255,0.1);
+    border-radius: 8px;
+    height: 6px;
+    overflow: hidden;
+  }
+  #prog-fill {
+    height: 100%;
+    width: 0%;
+    background: linear-gradient(90deg, #f0b429, #f59e0b);
+    border-radius: 8px;
+    transition: width 0.05s linear;
+  }
+  #pct-label {
+    color: #f0b429;
+    font-size: 12px;
+    margin-top: 4px;
+    font-weight: 500;
+  }
+</style>
 </head>
 <body>
-    <div class="bg-gradient"></div>
-    <div class="field-lines"></div>
-    <div class="top-stripe"></div>
+<div class="card">
+  <h1 id="welcome-title">¡Bienvenido!</h1>
+  <p class="subtitle" id="anim-subtitle">Preparando tu sesión...</p>
 
-    <!-- Overlay GOL -->
-    <div class="gol-overlay" id="golOverlay">
-        <div class="gol-text">⚽ GOL!</div>
-    </div>
+  <svg id="anim-svg" viewBox="0 0 400 250" xmlns="http://www.w3.org/2000/svg">
+    <rect width="400" height="250" fill="#12122a" rx="10"/>
+    <rect x="0" y="210" width="400" height="40" fill="#0e0e22" rx="0"/>
+    <line x1="0" y1="210" x2="400" y2="210" stroke="#1e1e4a" stroke-width="2"/>
 
-    <div class="scene">
-        <div class="welcome-text">
-            <h1>¡Bienvenido, <span id="username-display">Administrador</span>!</h1>
-            <p>Cargando el sistema...</p>
-        </div>
+    <!-- PRESS BANCA GROUP -->
+    <g id="bench-group">
+      <rect x="100" y="178" width="200" height="16" fill="#5a3e28" rx="4"/>
+      <rect x="128" y="192" width="18" height="18" fill="#4a3020" rx="2"/>
+      <rect x="254" y="192" width="18" height="18" fill="#4a3020" rx="2"/>
+      <rect x="140" y="152" width="8" height="28" fill="#777" rx="2"/>
+      <rect x="252" y="152" width="8" height="28" fill="#777" rx="2"/>
+      <g id="bench-athlete">
+        <rect x="153" y="160" width="92" height="20" fill="#3a7bd5" rx="6"/>
+        <circle cx="258" cy="168" r="13" fill="#f0c27f"/>
+        <ellipse cx="258" cy="158" rx="11" ry="6" fill="#3d2b1f"/>
+        <rect x="108" y="173" width="52" height="11" fill="#2c5aa0" rx="4"/>
+        <rect x="106" y="172" width="14" height="10" fill="#333" rx="3"/>
+        <ellipse cx="186" cy="164" rx="13" ry="7" fill="#4a90d9" opacity="0.7"/>
+        <ellipse cx="214" cy="164" rx="13" ry="7" fill="#4a90d9" opacity="0.7"/>
+        <g id="ba-lift">
+          <rect id="ba-arm-l" x="160" y="140" width="12" height="26" fill="#f0c27f" rx="4"/>
+          <rect id="ba-arm-r" x="220" y="140" width="12" height="26" fill="#f0c27f" rx="4"/>
+          <rect id="ba-bar" x="138" y="135" width="124" height="7" fill="#ccc" rx="3"/>
+          <rect id="ba-dl1" x="134" y="130" width="10" height="17" fill="#e55" rx="2"/>
+          <rect id="ba-dl2" x="125" y="132" width="8" height="13" fill="#c33" rx="2"/>
+          <rect id="ba-dr1" x="256" y="130" width="10" height="17" fill="#e55" rx="2"/>
+          <rect id="ba-dr2" x="267" y="132" width="8" height="13" fill="#c33" rx="2"/>
+        </g>
+      </g>
+      <g id="bench-effort" opacity="0">
+        <text x="290" y="148" font-size="16" fill="#f0b429" font-family="sans-serif">💪</text>
+        <text x="72" y="148" font-size="13" fill="#f0b429" font-family="sans-serif" font-weight="700">REP!</text>
+      </g>
+    </g>
 
-        <!-- Campo de fútbol con jugador -->
-        <div class="field-container">
-            <svg id="soccer-field" viewBox="0 0 520 260" xmlns="http://www.w3.org/2000/svg">
-                <defs>
-                    <!-- Gradiente para el pasto -->
-                    <linearGradient id="grassGrad" x1="0" y1="0" x2="0" y2="1">
-                        <stop offset="0%" stop-color="#0a3d1a"/>
-                        <stop offset="100%" stop-color="#062a10"/>
-                    </linearGradient>
-                    <!-- Patrón de franjas del pasto -->
-                    <pattern id="grassStripes" x="0" y="0" width="40" height="260" patternUnits="userSpaceOnUse">
-                        <rect x="0" y="0" width="20" height="260" fill="rgba(255,255,255,0.025)"/>
-                    </pattern>
-                </defs>
+    <!-- SENTADILLA GROUP -->
+    <g id="squat-group" display="none">
+      <g id="sq-bar-grp">
+        <rect x="130" y="112" width="140" height="7" fill="#ccc" rx="3"/>
+        <rect x="126" y="107" width="10" height="17" fill="#e55" rx="2"/>
+        <rect x="117" y="109" width="8" height="13" fill="#c33" rx="2"/>
+        <rect x="264" y="107" width="10" height="17" fill="#e55" rx="2"/>
+        <rect x="274" y="109" width="8" height="13" fill="#c33" rx="2"/>
+      </g>
+      <g id="sq-athlete">
+        <circle id="sq-head" cx="200" cy="92" r="15" fill="#f0c27f"/>
+        <ellipse cx="200" cy="81" rx="13" ry="7" fill="#3d2b1f"/>
+        <rect id="sq-torso" x="178" y="106" width="44" height="48" fill="#3a7bd5" rx="6"/>
+        <ellipse id="sq-pec-l" cx="192" cy="122" rx="10" ry="7" fill="#4a90d9" opacity="0.7"/>
+        <ellipse id="sq-pec-r" cx="208" cy="122" rx="10" ry="7" fill="#4a90d9" opacity="0.7"/>
+        <rect id="sq-arm-l" x="148" y="112" width="32" height="10" fill="#f0c27f" rx="4"/>
+        <rect id="sq-arm-r" x="220" y="112" width="32" height="10" fill="#f0c27f" rx="4"/>
+        <rect x="148" y="111" width="10" height="12" fill="#f0b429" rx="2" opacity="0.8"/>
+        <rect x="242" y="111" width="10" height="12" fill="#f0b429" rx="2" opacity="0.8"/>
+        <rect id="sq-hip" x="172" y="150" width="56" height="18" fill="#2c5aa0" rx="5"/>
+        <rect id="sq-thl" x="155" y="156" width="24" height="45" fill="#2c5aa0" rx="6" transform="rotate(28,167,178)"/>
+        <rect id="sq-thr" x="221" y="156" width="24" height="45" fill="#2c5aa0" rx="6" transform="rotate(-28,233,178)"/>
+        <rect id="sq-cfl" x="136" y="188" width="19" height="25" fill="#264d8c" rx="5"/>
+        <rect id="sq-cfr" x="245" y="188" width="19" height="25" fill="#264d8c" rx="5"/>
+        <rect x="128" y="210" width="27" height="7" fill="#333" rx="3"/>
+        <rect x="245" y="210" width="27" height="7" fill="#333" rx="3"/>
+      </g>
+      <g id="squat-effort" opacity="0">
+        <text x="298" y="108" font-size="16" fill="#f0b429" font-family="sans-serif">💪</text>
+        <text x="60" y="108" font-size="13" fill="#f0b429" font-family="sans-serif" font-weight="700">REP!</text>
+      </g>
+    </g>
 
-                <!-- Fondo del campo -->
-                <rect x="0" y="60" width="520" height="200" fill="url(#grassGrad)" rx="8"/>
-                <rect x="0" y="60" width="520" height="200" fill="url(#grassStripes)" rx="8"/>
+    <!-- Texto central celebración -->
+    <text id="cel-text" x="200" y="110" fill="#f0b429" font-size="0" font-weight="700" text-anchor="middle" font-family="'Segoe UI', sans-serif"></text>
+  </svg>
 
-                <!-- Líneas del campo -->
-                <!-- Línea central vertical -->
-                <line x1="260" y1="60" x2="260" y2="260" stroke="rgba(255,255,255,0.25)" stroke-width="1.5"/>
-                <!-- Círculo central -->
-                <circle cx="260" cy="160" r="45" fill="none" stroke="rgba(255,255,255,0.25)" stroke-width="1.5"/>
-                <!-- Punto central -->
-                <circle cx="260" cy="160" r="3" fill="rgba(255,255,255,0.4)"/>
-                <!-- Línea de fondo izquierda -->
-                <line x1="0" y1="60" x2="0" y2="260" stroke="rgba(255,255,255,0.25)" stroke-width="1.5"/>
-                <!-- Línea de fondo derecha -->
-                <line x1="520" y1="60" x2="520" y2="260" stroke="rgba(255,255,255,0.25)" stroke-width="1.5"/>
-                <!-- Línea de fondo abajo -->
-                <line x1="0" y1="260" x2="520" y2="260" stroke="rgba(255,255,255,0.25)" stroke-width="1.5"/>
-                <!-- Área derecha (donde está el arco) -->
-                <rect x="400" y="110" width="120" height="100" fill="none" stroke="rgba(255,255,255,0.25)" stroke-width="1.5"/>
-                <!-- Área chica derecha -->
-                <rect x="460" y="130" width="60" height="60" fill="none" stroke="rgba(255,255,255,0.25)" stroke-width="1.5"/>
-                <!-- Punto penal derecho -->
-                <circle cx="430" cy="160" r="2.5" fill="rgba(255,255,255,0.4)"/>
+  <div class="progress-wrap">
+    <div class="progress-label" id="prog-label">Cargando...</div>
+    <div class="progress-track"><div id="prog-fill"></div></div>
+    <div id="pct-label">0%</div>
+  </div>
+</div>
 
-                <!-- ── ARCO DERECHO ── -->
-                <g id="net-shake">
-                    <!-- Postes verticales -->
-                    <line x1="500" y1="130" x2="500" y2="190" stroke="#ddd" stroke-width="3" stroke-linecap="round"/>
-                    <!-- Travesaño -->
-                    <line x1="500" y1="130" x2="520" y2="130" stroke="#ddd" stroke-width="3" stroke-linecap="round"/>
-                    <line x1="500" y1="190" x2="520" y2="190" stroke="#ddd" stroke-width="3" stroke-linecap="round"/>
-                    <!-- Red - líneas horizontales -->
-                    <line x1="500" y1="140" x2="520" y2="140" stroke="rgba(255,255,255,0.2)" stroke-width="0.8"/>
-                    <line x1="500" y1="150" x2="520" y2="150" stroke="rgba(255,255,255,0.2)" stroke-width="0.8"/>
-                    <line x1="500" y1="160" x2="520" y2="160" stroke="rgba(255,255,255,0.2)" stroke-width="0.8"/>
-                    <line x1="500" y1="170" x2="520" y2="170" stroke="rgba(255,255,255,0.2)" stroke-width="0.8"/>
-                    <line x1="500" y1="180" x2="520" y2="180" stroke="rgba(255,255,255,0.2)" stroke-width="0.8"/>
-                    <!-- Red - líneas verticales -->
-                    <line x1="507" y1="130" x2="507" y2="190" stroke="rgba(255,255,255,0.2)" stroke-width="0.8"/>
-                    <line x1="514" y1="130" x2="514" y2="190" stroke="rgba(255,255,255,0.2)" stroke-width="0.8"/>
-                </g>
+<script>
+  // Inyectar nombre de usuario desde Jinja (Flask)
+  const userName = "{{ username }}";
+  document.getElementById('welcome-title').textContent = "¡Bienvenido, " + userName + "!";
 
-                <!-- Destello de gol (flash amarillo) -->
-                <rect id="goal-flash" x="498" y="128" width="24" height="64" fill="#f5c518" rx="2" opacity="0"/>
+  // Elegir animación aleatoriamente
+  const useBench = Math.random() < 0.5;
 
-                <!-- ── JUGADOR ── (posición: alrededor de x=215, y=160) -->
-                <g id="player-body" transform="translate(185,95)">
+  const benchGroup = document.getElementById('bench-group');
+  const squatGroup = document.getElementById('squat-group');
+  const celText    = document.getElementById('cel-text');
+  const progFill   = document.getElementById('prog-fill');
+  const pctLabel   = document.getElementById('pct-label');
+  const progLabel  = document.getElementById('prog-label');
+  const animSub    = document.getElementById('anim-subtitle');
 
-                    <!-- Sombra del jugador -->
-                    <ellipse cx="35" cy="168" rx="22" ry="5" fill="rgba(0,0,0,0.3)"/>
+  let timers = [];
+  function later(fn, ms) { timers.push(setTimeout(fn, ms)); }
 
-                    <!-- Pierna trasera (estática) -->
-                    <g transform="translate(28,120)">
-                        <rect x="-5" y="0" width="10" height="32" fill="#1a4fa0" rx="4"/>
-                        <!-- Zapato -->
-                        <rect x="-7" y="28" width="15" height="8" fill="#111" rx="3"/>
-                    </g>
+  function setProgress(pct) {
+    progFill.style.width = pct + '%';
+    pctLabel.textContent = Math.round(pct) + '%';
+  }
 
-                    <!-- Pierna que patea (animada) -->
-                    <g id="leg-kick" transform="translate(32,120)">
-                        <rect x="-5" y="0" width="10" height="30" fill="#1a4fa0" rx="4"/>
-                        <!-- Zapato de patada -->
-                        <g transform="translate(0,28)">
-                            <rect x="-6" y="0" width="18" height="8" fill="#cc2200" rx="3"/>
-                            <!-- Detalles del zapato -->
-                            <rect x="-4" y="2" width="14" height="2" fill="rgba(255,255,255,0.2)" rx="1"/>
-                        </g>
-                    </g>
+  function smoothProg(from, to, dur, cb) {
+    const s = performance.now();
+    function step(now) {
+      let t = Math.min((now - s) / dur, 1);
+      let e = t < 0.5 ? 2*t*t : -1+(4-2*t)*t;
+      setProgress(from + (to - from) * e);
+      if (t < 1) requestAnimationFrame(step);
+      else if (cb) cb();
+    }
+    requestAnimationFrame(step);
+  }
 
-                    <!-- Torso (camiseta) -->
-                    <rect x="16" y="70" width="38" height="55" fill="#1a4fa0" rx="6"/>
-                    <!-- Número en camiseta -->
-                    <text x="35" y="102" text-anchor="middle" fill="rgba(255,255,255,0.7)" font-size="13" font-weight="700" font-family="Arial">10</text>
-                    <!-- Cuello -->
-                    <rect x="28" y="68" width="14" height="6" fill="#1a4fa0" rx="2"/>
-
-                    <!-- Brazo izquierdo (hacia atrás - equilibrio) -->
-                    <g transform="translate(14,78) rotate(-35)">
-                        <rect x="-4" y="0" width="8" height="28" fill="#1a4fa0" rx="4"/>
-                        <circle cx="0" cy="28" r="5" fill="#c8a06a"/>
-                    </g>
-
-                    <!-- Brazo derecho (hacia adelante) -->
-                    <g transform="translate(54,78) rotate(20)">
-                        <rect x="-4" y="0" width="8" height="28" fill="#1a4fa0" rx="4"/>
-                        <circle cx="0" cy="28" r="5" fill="#c8a06a"/>
-                    </g>
-
-                    <!-- Cabeza -->
-                    <circle cx="35" cy="52" r="18" fill="#c8a06a"/>
-                    <!-- Cabello -->
-                    <path d="M18,46 Q22,28 35,25 Q48,28 52,46 Q46,32 35,30 Q24,32 18,46 Z" fill="#2a1500"/>
-                    <!-- Ojos -->
-                    <circle cx="28" cy="50" r="2.5" fill="#1a0a00"/>
-                    <circle cx="42" cy="50" r="2.5" fill="#1a0a00"/>
-                    <!-- Brillo ojos -->
-                    <circle cx="29" cy="49" r="1" fill="rgba(255,255,255,0.6)"/>
-                    <circle cx="43" cy="49" r="1" fill="rgba(255,255,255,0.6)"/>
-                    <!-- Nariz -->
-                    <ellipse cx="35" cy="55" rx="2" ry="1.5" fill="rgba(0,0,0,0.15)"/>
-                    <!-- Boca sonriendo -->
-                    <path d="M30,60 Q35,65 40,60" fill="none" stroke="#7a4a20" stroke-width="1.5" stroke-linecap="round"/>
-                    <!-- Orejas -->
-                    <circle cx="17" cy="52" r="5" fill="#c8a06a"/>
-                    <circle cx="53" cy="52" r="5" fill="#c8a06a"/>
-
-                    <!-- Banda capitán -->
-                    <rect x="52" y="80" width="12" height="7" fill="#f5c518" rx="2"/>
-                </g>
-
-                <!-- ── BALÓN ── -->
-                <g id="ball" transform="translate(258,168)">
-                    <!-- Sombra del balón -->
-                    <ellipse cx="0" cy="16" rx="11" ry="4" fill="rgba(0,0,0,0.3)"/>
-                    <!-- Balón -->
-                    <circle cx="0" cy="0" r="13" fill="white" stroke="#333" stroke-width="0.5"/>
-                    <!-- Pentágonos negros del balón -->
-                    <circle cx="0" cy="0" r="5" fill="#111"/>
-                    <polygon points="0,-10 5,-7 5,0 -5,0 -5,-7" fill="#111" opacity="0.8"/>
-                    <polygon points="8,5 13,0 10,8" fill="#111" opacity="0.8"/>
-                    <polygon points="-8,5 -13,0 -10,8" fill="#111" opacity="0.8"/>
-                    <!-- Brillo -->
-                    <circle cx="-4" cy="-5" r="4" fill="rgba(255,255,255,0.35)"/>
-                </g>
-
-                <!-- Etiqueta "BODY-FIT" en el campo -->
-                <text x="95" y="175" text-anchor="middle" fill="rgba(255,255,255,0.08)" font-size="22" font-weight="900" font-family="Arial" letter-spacing="4">BODY·FIT</text>
-
-            </svg>
-        </div>
-
-        <!-- Barra de progreso -->
-        <div class="progress-wrap">
-            <div class="progress-label">
-                <span>Cargando sistema</span>
-                <span id="pct-label">0%</span>
-            </div>
-            <div class="progress-track">
-                <div class="progress-bar" id="progressBar"></div>
-            </div>
-        </div>
-    </div>
-
-    <script>
-        const REDIRECT_URL = "{{ redirect_url }}";
-        const USERNAME = "{{ username }}";
-
-        document.getElementById('username-display').textContent = USERNAME || 'Administrador';
-
-        const ball = document.getElementById('ball');
-        const legKick = document.getElementById('leg-kick');
-        const playerBody = document.getElementById('player-body');
-        const netShake = document.getElementById('net-shake');
-        const goalFlash = document.getElementById('goal-flash');
-        const golOverlay = document.getElementById('golOverlay');
-        const progressBar = document.getElementById('progressBar');
-        const pctLabel = document.getElementById('pct-label');
-
-        let progress = 0;
-        let progressTimer = null;
-
-        function spawnParticles() {
-            const colors = ['#f5c518','#fff','#006847','#FF0000','#BF0A30','#1a9b5c'];
-            for (let i = 0; i < 30; i++) {
-                const p = document.createElement('div');
-                p.className = 'particle';
-                p.style.cssText = `
-                    left: ${45 + Math.random()*10}%;
-                    top: ${35 + Math.random()*5}%;
-                    background: ${colors[Math.floor(Math.random()*colors.length)]};
-                    width: ${4+Math.random()*7}px;
-                    height: ${4+Math.random()*7}px;
-                `;
-                document.body.appendChild(p);
-                const angle = (Math.random() * 360) * Math.PI / 180;
-                const dist = 80 + Math.random() * 180;
-                const dur = 600 + Math.random() * 800;
-                const startTime = performance.now();
-                (function animate(now) {
-                    const t = Math.min((now - startTime) / dur, 1);
-                    const eased = 1 - Math.pow(1 - t, 2);
-                    const x = Math.cos(angle) * dist * eased;
-                    const y = Math.sin(angle) * dist * eased + t * t * 60;
-                    p.style.transform = `translate(${x}px, ${y}px)`;
-                    p.style.opacity = t < 0.3 ? t/0.3 : 1 - (t-0.3)/0.7;
-                    if (t < 1) requestAnimationFrame(animate);
-                    else p.remove();
-                })(startTime);
-            }
+  function showCelebration(txt) {
+    celText.textContent = txt;
+    const s = performance.now();
+    function grow(now) {
+      let t = Math.min((now - s)/350, 1);
+      celText.setAttribute('font-size', t * 38);
+      if (t < 1) requestAnimationFrame(grow);
+      else later(() => {
+        const s2 = performance.now();
+        function shrink(now2) {
+          let t2 = Math.min((now2 - s2)/300, 1);
+          celText.setAttribute('font-size', (1 - t2) * 38);
+          if (t2 < 1) requestAnimationFrame(shrink);
         }
+        requestAnimationFrame(shrink);
+      }, 700);
+    }
+    requestAnimationFrame(grow);
+  }
 
-        function doGoal() {
-            golOverlay.classList.add('show');
-            goalFlash.classList.add('flash');
-            netShake.classList.add('shake');
-            spawnParticles();
-            setTimeout(() => {
-                golOverlay.classList.remove('show');
-                golOverlay.classList.add('hide');
-            }, 900);
-            setTimeout(() => {
-                golOverlay.classList.remove('hide');
-                goalFlash.classList.remove('flash');
-                netShake.classList.remove('shake');
-            }, 1350);
-        }
+  /* ---- PRESS BANCA ---- */
+  function animBenchBar(goUp, dur, cb) {
+    const barEl   = document.getElementById('ba-bar');
+    const alEl    = document.getElementById('ba-arm-l');
+    const arEl    = document.getElementById('ba-arm-r');
+    const dl1 = document.getElementById('ba-dl1');
+    const dl2 = document.getElementById('ba-dl2');
+    const dr1 = document.getElementById('ba-dr1');
+    const dr2 = document.getElementById('ba-dr2');
+    const fromY = goUp ? 155 : 135;
+    const toY   = goUp ? 135 : 155;
+    const s = performance.now();
+    function step(now) {
+      let t = Math.min((now - s)/dur, 1);
+      let e = t < 0.5 ? 2*t*t : -1+(4-2*t)*t;
+      const y = fromY + (toY - fromY) * e;
+      barEl.setAttribute('y', y);
+      dl1.setAttribute('y', y - 5); dl2.setAttribute('y', y - 3);
+      dr1.setAttribute('y', y - 5); dr2.setAttribute('y', y - 3);
+      const armH = goUp ? (10 + 16 * e) : (26 - 16 * e);
+      const armY = goUp ? (155 - armH + 10) : (155 - armH + 10);
+      alEl.setAttribute('height', armH); alEl.setAttribute('y', y - armH + 2);
+      arEl.setAttribute('height', armH); arEl.setAttribute('y', y - armH + 2);
+      if (t < 1) requestAnimationFrame(step);
+      else if (cb) cb();
+    }
+    requestAnimationFrame(step);
+  }
 
-        function kickBall() {
-            ball.classList.remove('idle-bounce');
-            legKick.classList.remove('reset');
-            playerBody.classList.remove('reset');
+  function runBench() {
+    animSub.textContent = 'Press banca — ¡dale con todo!';
+    progLabel.textContent = 'Preparando sesión...';
+    benchGroup.removeAttribute('display');
+    squatGroup.setAttribute('display','none');
+    document.getElementById('bench-effort').setAttribute('opacity','0');
+    celText.setAttribute('font-size', 0);
+    setProgress(0);
 
-            void legKick.offsetWidth;
-            void playerBody.offsetWidth;
-            void ball.offsetWidth;
+    function rep(delay, onDone) {
+      later(() => {
+        animBenchBar(false, 520, () => {
+          later(() => {
+            animBenchBar(true, 480, () => {
+              document.getElementById('bench-effort').setAttribute('opacity','1');
+              later(() => document.getElementById('bench-effort').setAttribute('opacity','0'), 380);
+              if (onDone) onDone();
+            });
+          }, 160);
+        });
+      }, delay);
+    }
 
-            legKick.classList.add('kick-phase');
-            playerBody.classList.add('bodyLean');
+    smoothProg(0, 30, 900);
+    rep(300, () => {
+      smoothProg(30, 65, 900);
+      rep(1100, () => {
+        smoothProg(65, 90, 700);
+        rep(2000, () => {
+          showCelebration('¡RÉCORD! 💪');
+          smoothProg(90, 100, 600, () => {
+            later(() => { window.location.href = "{{ redirect_url }}"; }, 1000);
+          });
+        });
+      });
+    });
+  }
 
-            ball.style.animation = 'none';
-            void ball.offsetWidth;
-            ball.style.animation = 'ballKick 1.1s cubic-bezier(0.25,0.46,0.45,0.94) forwards';
+  /* ---- SENTADILLA ---- */
+  function animSquat(goDown, dur, cb) {
+    const hipEl  = document.getElementById('sq-hip');
+    const torsEl = document.getElementById('sq-torso');
+    const headEl = document.getElementById('sq-head');
+    const pL     = document.getElementById('sq-pec-l');
+    const pR     = document.getElementById('sq-pec-r');
+    const alEl   = document.getElementById('sq-arm-l');
+    const arEl   = document.getElementById('sq-arm-r');
+    const bGrp   = document.getElementById('sq-bar-grp');
+    const fromH  = goDown ? 150 : 168;
+    const toH    = goDown ? 168 : 150;
+    const s = performance.now();
+    function step(now) {
+      let t = Math.min((now - s)/dur, 1);
+      let e = t < 0.5 ? 2*t*t : -1+(4-2*t)*t;
+      const hy = fromH + (toH - fromH) * e;
+      hipEl.setAttribute('y', hy);
+      torsEl.setAttribute('y', hy - 44);
+      headEl.setAttribute('cy', hy - 72);
+      pL.setAttribute('cy', hy - 29); pR.setAttribute('cy', hy - 29);
+      const barY = hy - 44;
+      bGrp.setAttribute('transform', `translate(0,${barY - 106})`);
+      alEl.setAttribute('y', barY + 6); arEl.setAttribute('y', barY + 6);
+      if (t < 1) requestAnimationFrame(step);
+      else if (cb) cb();
+    }
+    requestAnimationFrame(step);
+  }
 
-            setTimeout(() => {
-                doGoal();
-                legKick.classList.remove('kick-phase');
-                playerBody.classList.remove('bodyLean');
-                legKick.classList.add('reset');
-                playerBody.classList.add('reset');
-            }, 1100);
+  function runSquat() {
+    animSub.textContent = 'Sentadilla — ¡profunda y potente!';
+    progLabel.textContent = 'Preparando sesión...';
+    squatGroup.removeAttribute('display');
+    benchGroup.setAttribute('display','none');
+    document.getElementById('squat-effort').setAttribute('opacity','0');
+    celText.setAttribute('font-size', 0);
+    setProgress(0);
 
-            setTimeout(() => {
-                ball.style.animation = 'none';
-                ball.style.transform = 'translate(0,0)';
-                void ball.offsetWidth;
-                ball.classList.add('idle-bounce');
-                legKick.classList.remove('reset');
-            }, 1900);
-        }
+    function rep(delay, onDone) {
+      later(() => {
+        animSquat(true, 580, () => {
+          later(() => {
+            animSquat(false, 520, () => {
+              document.getElementById('squat-effort').setAttribute('opacity','1');
+              later(() => document.getElementById('squat-effort').setAttribute('opacity','0'), 380);
+              if (onDone) onDone();
+            });
+          }, 170);
+        });
+      }, delay);
+    }
 
-        ball.classList.add('idle-bounce');
+    smoothProg(0, 30, 900);
+    rep(300, () => {
+      smoothProg(30, 65, 900);
+      rep(1200, () => {
+        smoothProg(65, 90, 700);
+        rep(2100, () => {
+          showCelebration('¡PERSONAL BEST! 🏋️');
+          smoothProg(90, 100, 600, () => {
+            later(() => { window.location.href = "{{ redirect_url }}"; }, 1000);
+          });
+        });
+      });
+    });
+  }
 
-        setTimeout(() => { kickBall(); }, 600);
-
-        setTimeout(() => { kickBall(); }, 3200);
-
-        progressTimer = setInterval(() => {
-            const boostAt = [10, 35, 60, 85, 95];
-            let inc = progress < 30 ? 1.8 : progress < 60 ? 1.2 : progress < 85 ? 0.8 : 0.3;
-            if (boostAt.some(b => Math.abs(progress - b) < 2)) inc = 2.5;
-            progress = Math.min(progress + inc, 99);
-            progressBar.style.width = progress + '%';
-            pctLabel.textContent = Math.floor(progress) + '%';
-        }, 50);
-
-        setTimeout(() => {
-            clearInterval(progressTimer);
-            progress = 100;
-            progressBar.style.width = '100%';
-            progressBar.style.background = 'linear-gradient(90deg, #006847, #f5c518)';
-            pctLabel.textContent = '100%';
-            setTimeout(() => {
-                window.location.href = REDIRECT_URL;
-            }, 350);
-        }, 4600);
-    </script>
+  // Ejecutar animación aleatoria
+  if (useBench) runBench(); else runSquat();
+</script>
 </body>
 </html>

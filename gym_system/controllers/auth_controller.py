@@ -13,11 +13,27 @@ class AuthController:
             if user:
                 session['user_id']       = user.id
                 session['user_role']     = user.role
-                session['user_username'] = user.username   # ← para el navbar
+                session['user_username'] = user.username
                 session.permanent        = bool(remember)
-                return redirect(url_for('dashboard.index'))
+                # Redirigir a la animación de bienvenida antes del dashboard
+                return render_template(
+                    'auth/login_success.html',
+                    username=user.username,
+                    redirect_url=url_for('dashboard.index')
+                )
             flash(error, 'danger')
         return render_template('auth/login.html')
+
+    @staticmethod
+    def login_success():
+        """Página de animación post-login (fallback si se accede directo)."""
+        if 'user_id' not in session:
+            return redirect(url_for('auth.login'))
+        return render_template(
+            'auth/login_success.html',
+            username=session.get('user_username', 'Administrador'),
+            redirect_url=url_for('dashboard.index')
+        )
 
     @staticmethod
     def logout():

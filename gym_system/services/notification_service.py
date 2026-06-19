@@ -16,35 +16,25 @@ logger = logging.getLogger(__name__)
 
 def send_whatsapp_owner(mensaje: str) -> bool:
     """
-    Envía un mensaje de WhatsApp al dueño del gym via Twilio Sandbox.
+    Envía un mensaje de WhatsApp al dueño del gym via CallMeBot (gratis, sin límite).
     Requiere variables de entorno:
-        TWILIO_ACCOUNT_SID
-        TWILIO_AUTH_TOKEN
-        TWILIO_WHATSAPP_FROM   (ej. whatsapp:+14155238886)
-        OWNER_WHATSAPP         (ej. +573045247078)
+        CALLMEBOT_PHONE    (ej. 573006855353)
+        CALLMEBOT_APIKEY   (ej. 9315615)
     """
-    account_sid = os.environ.get('TWILIO_ACCOUNT_SID', '').strip()
-    auth_token  = os.environ.get('TWILIO_AUTH_TOKEN', '').strip()
-    from_wa     = os.environ.get('TWILIO_WHATSAPP_FROM', 'whatsapp:+14155238886').strip()
-    owner_wa    = os.environ.get('OWNER_WHATSAPP', '').strip()
+    phone  = os.environ.get('CALLMEBOT_PHONE', '').strip()
+    apikey = os.environ.get('CALLMEBOT_APIKEY', '').strip()
 
-    if not all([account_sid, auth_token, owner_wa]):
-        print('[WHATSAPP] Variables de entorno no configuradas, se omite notificación.')
+    if not all([phone, apikey]):
+        print('[WHATSAPP] Variables CALLMEBOT_PHONE o CALLMEBOT_APIKEY no configuradas.')
         return False
 
-    # Asegura formato correcto del número destino
-    to_wa = owner_wa if owner_wa.startswith('whatsapp:') else f'whatsapp:{owner_wa}'
-
     try:
-        url = f'https://api.twilio.com/2010-04-01/Accounts/{account_sid}/Messages.json'
-        response = requests.post(
-            url,
-            data={'From': from_wa, 'To': to_wa, 'Body': mensaje},
-            auth=(account_sid, auth_token),
-            timeout=10,
-        )
-        if response.status_code in (200, 201):
-            print(f'[WHATSAPP OK] Mensaje enviado al dueño: {response.json().get("sid")}')
+        import urllib.parse
+        texto_encoded = urllib.parse.quote(mensaje)
+        url = f'https://api.callmebot.com/whatsapp.php?phone={phone}&text={texto_encoded}&apikey={apikey}'
+        response = requests.get(url, timeout=10)
+        if response.status_code == 200:
+            print(f'[WHATSAPP OK] Mensaje enviado via CallMeBot a {phone}')
             return True
         else:
             print(f'[WHATSAPP ERROR] {response.status_code}: {response.text[:200]}')

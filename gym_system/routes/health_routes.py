@@ -24,4 +24,11 @@ def health():
         except Exception as e:
             current_app.logger.error(f'expiry_job error: {e}')
 
+    # Ejecutar reporte diario a las 10pm hora Colombia
+    try:
+        from services.daily_report_job import run_daily_report
+        run_daily_report(current_app._get_current_object())
+    except Exception as e:
+        current_app.logger.error(f'daily_report error: {e}')
+
     return jsonify({'status': 'ok', 'time': str(datetime.now(BOGOTA))}), 200

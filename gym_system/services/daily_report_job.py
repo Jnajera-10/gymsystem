@@ -2,14 +2,12 @@
 Job diario que envía un resumen del día por WhatsApp al dueño a las 10pm hora Bogotá.
 Se dispara desde /health (UptimeRobot cada 5 min) pero solo corre una vez por día
 después de las 22:00 hora Colombia.
+Usa solo memoria — no requiere columnas extra en la BD.
 """
 import pytz
 import logging
-from datetime import datetime, date
+from datetime import datetime, timedelta
 from database.models.payment import Payment
-from database.models.settings import GymSettings
-from database.models.membership import Membership
-from database.db import db
 
 BOGOTA  = pytz.timezone('America/Bogota')
 HORA_REPORTE = 22   # 10pm
@@ -30,14 +28,8 @@ def run_daily_report(app):
         if now.hour < HORA_REPORTE:
             return
 
-        # Chequeo en memoria
+        # Ya se envió hoy
         if _last_report_date == today_str:
-            return
-
-        # Chequeo persistente en BD
-        settings = GymSettings.query.first()
-        if settings and settings.last_report_run == today_str:
-            _last_report_date = today_str
             return
 
         # ── Calcular datos del día ────────────────────────────────
@@ -45,11 +37,11 @@ def run_daily_report(app):
             pagos_hoy = Payment.query.filter(
                 Payment.payment_date == today,
                 Payment.is_deleted   == False,
-                Payment.amount       > 0,        # excluir espejo plan pareja
+                Payment.amount       > 0,
             ).all()
 
-            total_dia    = sum(p.amount for p in pagos_hoy)
-            num_pagos    = len(pagos_hoy)
+            total_dia = sum(p.amount for p in pagos_hoy)
+            num_pagos = len(pagos_hoy)
 
             # Desglose por plan
             planes = {}
@@ -60,7 +52,7 @@ def run_daily_report(app):
                 planes[nombre]['cantidad'] += 1
                 planes[nombre]['total']    += p.amount
 
-            # Desglose por método de pago
+            # Desglose por método
             from utils.helpers import parse_payment_split
             metodos = {}
             for p in pagos_hoy:
@@ -69,7 +61,6 @@ def run_daily_report(app):
                     metodos[method] = metodos.get(method, 0) + val
 
             # Membresías por vencer en los próximos 3 días
-            from datetime import timedelta
             proximos = Payment.query.filter(
                 Payment.end_date  >= today,
                 Payment.end_date  <= today + timedelta(days=3),
@@ -81,35 +72,35 @@ def run_daily_report(app):
 
             lineas_planes = ''
             for nombre, datos in sorted(planes.items(), key=lambda x: x[1]['cantidad'], reverse=True):
-                lineas_planes += f"   • {nombre}: {datos['cantidad']} venta(s) — ${'{:,.0f}'.format(datos['total'])}\n"
+                lineas_planes += f"   - {nombre}: {datos['cantidad']} venta(s) - ${'{:,.0f}'.format(datos['total'])}\n"
 
             lineas_metodos = ''
             for method, total in sorted(metodos.items(), key=lambda x: x[1], reverse=True):
-                lineas_metodos += f"   • {method.capitalize()}: ${'{:,.0f}'.format(total)}\n"
+                lineas_metodos += f"   - {method.capitalize()}: ${'{:,.0f}'.format(total)}\n"
 
             lineas_vencer = ''
             for p in proximos[:5]:
                 dias = (p.end_date - today).days
-                label = 'Hoy' if dias == 0 else f'en {dias} día(s)'
-                nombre_c = p.client.full_name if p.client else '—'
-                lineas_vencer += f"   ⚠️ {nombre_c} vence {label}\n"
+                label = 'Hoy' if dias == 0 else f'en {dias} dia(s)'
+                nombre_c = p.client.full_name if p.client else '-'
+                lineas_vencer += f"   * {nombre_c} vence {label}\n"
             if not lineas_vencer:
-                lineas_vencer = '   ✅ Ninguna membresía por vencer\n'
+                lineas_vencer = '   OK - Ninguna membresia por vencer\n'
 
             mensaje = (
-                f"📊 *REPORTE DEL DÍA — BODY-FIT GYM*\n"
-                f"📅 {fecha_str}\n"
-                f"{'─'*30}\n"
-                f"💰 *Total ingresos:* ${'{:,.0f}'.format(total_dia)} COP\n"
-                f"🧾 *Pagos registrados:* {num_pagos}\n"
-                f"{'─'*30}\n"
-                f"📋 *Por plan:*\n{lineas_planes}"
-                f"{'─'*30}\n"
-                f"💳 *Por método:*\n{lineas_metodos}"
-                f"{'─'*30}\n"
-                f"⏳ *Próximos a vencer:*\n{lineas_vencer}"
-                f"{'─'*30}\n"
-                f"🕙 Generado a las {now.strftime('%H:%M')} | Body-Fit 💪"
+                f"REPORTE DEL DIA - BODY-FIT GYM\n"
+                f"Fecha: {fecha_str}\n"
+                f"----------------------------\n"
+                f"Total ingresos: ${'{:,.0f}'.format(total_dia)} COP\n"
+                f"Pagos registrados: {num_pagos}\n"
+                f"----------------------------\n"
+                f"Por plan:\n{lineas_planes}"
+                f"----------------------------\n"
+                f"Por metodo:\n{lineas_metodos}"
+                f"----------------------------\n"
+                f"Proximos a vencer:\n{lineas_vencer}"
+                f"----------------------------\n"
+                f"Generado a las {now.strftime('%H:%M')} | Body-Fit"
             )
 
             from services.notification_service import send_whatsapp_owner
@@ -120,15 +111,5 @@ def run_daily_report(app):
             logger.error(f'[daily_report] Error generando reporte: {exc}', exc_info=True)
             return
 
-        # ── Guardar fecha de ejecución ────────────────────────────
+        # Guardar en memoria
         _last_report_date = today_str
-        try:
-            if settings:
-                settings.last_report_run = today_str
-            else:
-                settings = GymSettings(last_report_run=today_str)
-                db.session.add(settings)
-            db.session.commit()
-        except Exception as e:
-            db.session.rollback()
-            logger.error(f'[daily_report] No se pudo guardar fecha: {e}')

@@ -18,5 +18,4 @@ class GymSettings(db.Model):
     days_before_expiry = db.Column(db.Integer, default=3)
     # Campo dedicado para el job de notificaciones (evita depender de 'notes')
     last_notif_run  = db.Column(db.String(10), nullable=True)   # formato 'YYYY-MM-DD'
-    last_report_run = db.Column(db.String(10), nullable=True)   # reporte diario 10pm
     updated_at = db.Column(db.DateTime, onupdate=lambda: datetime.now(BOGOTA))

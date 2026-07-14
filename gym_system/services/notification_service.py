@@ -11,7 +11,55 @@ logger = logging.getLogger(__name__)
 
 
 # ══════════════════════════════════════════════════════════════════
-#  WHATSAPP — Twilio Sandbox
+#  TELEGRAM — canal principal de notificaciones al dueño
+# ══════════════════════════════════════════════════════════════════
+
+def send_telegram_owner(mensaje: str) -> bool:
+    """
+    Envía un mensaje de Telegram al dueño del gym via un Bot de Telegram.
+    Gratis y sin límite práctico para chats personales (a diferencia de
+    CallMeBot, que bloquea el envío al superar su cuota de uso gratuito).
+
+    Requiere variables de entorno:
+        TELEGRAM_BOT_TOKEN  (token que entrega @BotFather al crear el bot)
+        TELEGRAM_CHAT_ID    (tu chat_id personal, ver instrucciones de setup)
+    """
+    token   = os.environ.get('TELEGRAM_BOT_TOKEN', '').strip()
+    chat_id = os.environ.get('TELEGRAM_CHAT_ID', '').strip()
+
+    if not all([token, chat_id]):
+        print('[TELEGRAM] Variables TELEGRAM_BOT_TOKEN o TELEGRAM_CHAT_ID no configuradas.')
+        return False
+
+    url = f'https://api.telegram.org/bot{token}/sendMessage'
+
+    def _intentar(parse_mode):
+        payload = {'chat_id': chat_id, 'text': mensaje, 'disable_web_page_preview': True}
+        if parse_mode:
+            payload['parse_mode'] = parse_mode
+        return requests.post(url, json=payload, timeout=15)
+
+    try:
+        response = _intentar('Markdown')
+        if response.status_code != 200:
+            print(f'[TELEGRAM WARN] Markdown fallo ({response.status_code}), reintentando en texto plano.')
+            response = _intentar(None)
+
+        if response.status_code == 200:
+            print(f'[TELEGRAM OK] Mensaje enviado a chat_id={chat_id}')
+            return True
+        else:
+            print(f'[TELEGRAM ERROR] {response.status_code}: {response.text[:300]}')
+            return False
+    except Exception as exc:
+        print(f'[TELEGRAM ERROR] {exc}')
+        return False
+
+
+# ══════════════════════════════════════════════════════════════════
+#  WHATSAPP — CallMeBot (en desuso: se mantiene por si se necesita
+#  como respaldo, pero ya no se llama desde los jobs por defecto,
+#  debido a los límites de la cuota gratuita)
 # ══════════════════════════════════════════════════════════════════
 
 def send_whatsapp_owner(mensaje: str) -> bool:

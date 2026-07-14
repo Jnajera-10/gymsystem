@@ -294,7 +294,7 @@ class PaymentsController:
 
         # ── WhatsApp al dueño: alerta de eliminación ───────────────
         try:
-            from services.notification_service import send_whatsapp_owner
+            from services.notification_service import send_telegram_owner
             from datetime import datetime
             import pytz
             hora = datetime.now(pytz.timezone('America/Bogota')).strftime('%H:%M')
@@ -312,7 +312,7 @@ class PaymentsController:
                 f"⚠️ Este pago fue eliminado del sistema."
                 + (f"\n♻️ Tambien se elimino el espejo Plan Pareja #{mirror.id}." if mirror else "")
             )
-            send_whatsapp_owner(msg)
+            send_telegram_owner(msg)
         except Exception as exc:
             logger.error(f'[WHATSAPP] Error notificando eliminación: {exc}')
 
@@ -361,7 +361,7 @@ def _send_payment_email(payment):
 
         # ── WhatsApp al dueño ──────────────────────────────────────
         try:
-            from services.notification_service import send_whatsapp_owner
+            from services.notification_service import send_telegram_owner
             from utils.helpers import parse_payment_split
             from datetime import datetime
             import pytz
@@ -391,7 +391,7 @@ def _send_payment_email(payment):
                 f"{'-'*28}\n"
                 f"📝 *Obs:* {payment.notes or 'Sin observaciones'}"
             )
-            send_whatsapp_owner(msg)
+            send_telegram_owner(msg)
         except Exception as exc:
             logger.error(f'[WHATSAPP] Error notificando al dueño: {exc}')
 

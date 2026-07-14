@@ -103,8 +103,8 @@ def run_daily_report(app):
                 f"Generado a las {now.strftime('%H:%M')} | Body-Fit"
             )
 
-            from services.notification_service import send_whatsapp_owner
-            send_whatsapp_owner(mensaje)
+            from services.notification_service import send_telegram_owner
+            send_telegram_owner(mensaje)
             logger.info(f'[daily_report] Reporte enviado el {today_str}')
 
         except Exception as exc:

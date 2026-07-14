@@ -16,6 +16,10 @@ logger = logging.getLogger(__name__)
 _last_report_date = None
 
 
+def _escapar_html(texto):
+    return (texto or '').replace('&', '&amp;').replace('<', '&lt;').replace('>', '&gt;')
+
+
 def run_daily_report(app):
     global _last_report_date
 
@@ -82,29 +86,34 @@ def run_daily_report(app):
             for p in proximos[:5]:
                 dias = (p.end_date - today).days
                 label = 'Hoy' if dias == 0 else f'en {dias} dia(s)'
-                nombre_c = p.client.full_name if p.client else '-'
+                nombre_c = _escapar_html(p.client.full_name) if p.client else '-'
                 lineas_vencer += f"   * {nombre_c} vence {label}\n"
             if not lineas_vencer:
                 lineas_vencer = '   OK - Ninguna membresia por vencer\n'
 
             mensaje = (
-                f"REPORTE DEL DIA - BODY-FIT GYM\n"
-                f"Fecha: {fecha_str}\n"
-                f"----------------------------\n"
-                f"Total ingresos: ${'{:,.0f}'.format(total_dia)} COP\n"
-                f"Pagos registrados: {num_pagos}\n"
-                f"----------------------------\n"
-                f"Por plan:\n{lineas_planes}"
-                f"----------------------------\n"
-                f"Por metodo:\n{lineas_metodos}"
-                f"----------------------------\n"
-                f"Proximos a vencer:\n{lineas_vencer}"
-                f"----------------------------\n"
-                f"Generado a las {now.strftime('%H:%M')} | Body-Fit"
+                f"🌙 <b>Reporte del día — L-GYM</b>\n"
+                f"<i>{fecha_str}</i>\n"
+                f"{'─'*22}\n"
+                f"💰 <b>Ingresos:</b> <code>${'{:,.0f}'.format(total_dia)} COP</code>\n"
+                f"🧾 <b>Pagos registrados:</b> <code>{num_pagos}</code>\n"
+                f"{'─'*22}\n"
+                f"📋 <b>Por plan</b>\n{lineas_planes}"
+                f"{'─'*22}\n"
+                f"💳 <b>Por método</b>\n{lineas_metodos}"
+                f"{'─'*22}\n"
+                f"⏳ <b>Próximos a vencer</b>\n{lineas_vencer}"
+                f"{'─'*22}\n"
+                f"<i>Generado a las {now.strftime('%H:%M')}</i>"
             )
 
             from services.notification_service import send_telegram_owner
-            send_telegram_owner(mensaje)
+            import os
+            base_url = os.environ.get('RENDER_EXTERNAL_URL') or os.environ.get('APP_BASE_URL', '')
+            botones = None
+            if base_url:
+                botones = [{'texto': '📊 Ver dashboard', 'url': base_url.rstrip('/') + '/'}]
+            send_telegram_owner(mensaje, botones=botones)
             logger.info(f'[daily_report] Reporte enviado el {today_str}')
 
         except Exception as exc:

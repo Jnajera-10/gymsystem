@@ -5,16 +5,16 @@ from database.models.notifications import Notification
 from database.db import db
 import pytz
 from datetime import datetime
-
+ 
 BOGOTA = pytz.timezone('America/Bogota')
 logger = logging.getLogger(__name__)
-
-
+ 
+ 
 # ══════════════════════════════════════════════════════════════════
 #  TELEGRAM — canal principal de notificaciones al dueño
 # ══════════════════════════════════════════════════════════════════
 
-def send_telegram_owner(mensaje: str) -> bool:
+def send_telegram_owner(mensaje: str, botones: list = None) -> bool:
     """
     Envía un mensaje de Telegram al dueño del gym via un Bot de Telegram.
     Gratis y sin límite práctico para chats personales (a diferencia de
@@ -23,6 +23,12 @@ def send_telegram_owner(mensaje: str) -> bool:
     Requiere variables de entorno:
         TELEGRAM_BOT_TOKEN  (token que entrega @BotFather al crear el bot)
         TELEGRAM_CHAT_ID    (tu chat_id personal, ver instrucciones de setup)
+
+    mensaje: texto en formato HTML de Telegram (<b>, <i>, <code>, etc.)
+    botones: lista opcional de botones tipo link, ej.
+             [{'texto': 'Ver recibo', 'url': 'https://...'}]
+             Cada fila puede traer hasta 2 botones; se acomodan
+             automáticamente de a 2 por fila.
     """
     token   = os.environ.get('TELEGRAM_BOT_TOKEN', '').strip()
     chat_id = os.environ.get('TELEGRAM_CHAT_ID', '').strip()
@@ -33,17 +39,36 @@ def send_telegram_owner(mensaje: str) -> bool:
 
     url = f'https://api.telegram.org/bot{token}/sendMessage'
 
+    reply_markup = None
+    if botones:
+        filas = []
+        fila_actual = []
+        for b in botones:
+            fila_actual.append({'text': b['texto'], 'url': b['url']})
+            if len(fila_actual) == 2:
+                filas.append(fila_actual)
+                fila_actual = []
+        if fila_actual:
+            filas.append(fila_actual)
+        reply_markup = {'inline_keyboard': filas}
+
     def _intentar(parse_mode):
         payload = {'chat_id': chat_id, 'text': mensaje, 'disable_web_page_preview': True}
         if parse_mode:
             payload['parse_mode'] = parse_mode
+        if reply_markup:
+            payload['reply_markup'] = reply_markup
         return requests.post(url, json=payload, timeout=15)
 
     try:
-        response = _intentar('Markdown')
+        # Los mensajes usan HTML (<b>, <i>, <code>) para el diseño tipo
+        # tarjeta. Si algo viene mal formado, reintentamos en texto plano
+        # (sin botones, ya que van ligados al formato) para no perder el aviso.
+        response = _intentar('HTML')
         if response.status_code != 200:
-            print(f'[TELEGRAM WARN] Markdown fallo ({response.status_code}), reintentando en texto plano.')
-            response = _intentar(None)
+            print(f'[TELEGRAM WARN] HTML fallo ({response.status_code}), reintentando en texto plano.')
+            payload = {'chat_id': chat_id, 'text': mensaje, 'disable_web_page_preview': True}
+            response = requests.post(url, json=payload, timeout=15)
 
         if response.status_code == 200:
             print(f'[TELEGRAM OK] Mensaje enviado a chat_id={chat_id}')
@@ -71,11 +96,19 @@ def send_whatsapp_owner(mensaje: str) -> bool:
     """
     phone  = os.environ.get('CALLMEBOT_PHONE', '').strip()
     apikey = os.environ.get('CALLMEBOT_APIKEY', '').strip()
-
+ 
     if not all([phone, apikey]):
         print('[WHATSAPP] Variables CALLMEBOT_PHONE o CALLMEBOT_APIKEY no configuradas.')
         return False
-
+ 
+    # FIX: CallMeBot parece interpretar "$" seguido de un dígito (ej. "$4")
+    # como un placeholder y lo borra del mensaje final, dejando solo
+    # ".000" en vez de "$4.000". Insertamos un espacio de ancho cero
+    # (invisible) entre el "$" y el dígito para romper ese patrón sin
+    # cambiar cómo se ve el mensaje.
+    import re
+    mensaje = re.sub(r'\$(\d)', '$\u200b\\1', mensaje)
+ 
     try:
         # Usar params= para que requests maneje la codificación automáticamente
         response = requests.get(
@@ -96,8 +129,8 @@ def send_whatsapp_owner(mensaje: str) -> bool:
     except Exception as exc:
         print(f'[WHATSAPP ERROR] {exc}')
         return False
-
-
+ 
+ 
 def _send_brevo(to_email: str, subject: str, html_body: str) -> tuple[bool, str]:
     """
     Envía email usando la API HTTP de Brevo (antes Sendinblue).
@@ -105,25 +138,25 @@ def _send_brevo(to_email: str, subject: str, html_body: str) -> tuple[bool, str]
     """
     api_key = os.environ.get('BREVO_API_KEY', '').strip()
     mail_from = os.environ.get('MAIL_FROM', '').strip()
-    mail_name = os.environ.get('MAIL_FROM_NAME', 'Body-Fit Gym').strip()
-
+    mail_name = os.environ.get('MAIL_FROM_NAME', 'L-GYM').strip()
+ 
     if not api_key:
         msg = 'BREVO_API_KEY vacía en variables de entorno.'
         print("[LOG-ERROR]", f'[EMAIL] {msg}')
         return False, msg
-
+ 
     if not mail_from:
         msg = 'MAIL_FROM vacío en variables de entorno.'
         print("[LOG-ERROR]", f'[EMAIL] {msg}')
         return False, msg
-
+ 
     payload = {
         'sender': {'name': mail_name, 'email': mail_from},
         'to': [{'email': to_email}],
         'subject': subject,
         'htmlContent': html_body,
     }
-
+ 
     try:
         response = requests.post(
             'https://api.brevo.com/v3/smtp/email',
@@ -145,8 +178,8 @@ def _send_brevo(to_email: str, subject: str, html_body: str) -> tuple[bool, str]
         err = str(exc)[:200]
         print("[LOG-ERROR]", f'[EMAIL ERROR] {subject} → {to_email}: {err}')
         return False, err
-
-
+ 
+ 
 def send_email_raw(to_email: str, subject: str, html_body: str,
                    attachment: bytes = None, attach_name: str = None):
     """
@@ -158,24 +191,24 @@ def send_email_raw(to_email: str, subject: str, html_body: str,
     import base64
     api_key   = os.environ.get('BREVO_API_KEY', '').strip()
     mail_from = os.environ.get('MAIL_FROM', '').strip()
-    mail_name = os.environ.get('MAIL_FROM_NAME', 'Body-Fit Gym').strip()
-
+    mail_name = os.environ.get('MAIL_FROM_NAME', 'L-GYM').strip()
+ 
     if not api_key or not mail_from:
         raise ValueError('BREVO_API_KEY o MAIL_FROM no configurados.')
-
+ 
     payload = {
         'sender':      {'name': mail_name, 'email': mail_from},
         'to':          [{'email': to_email}],
         'subject':     subject,
         'htmlContent': html_body,
     }
-
+ 
     if attachment and attach_name:
         payload['attachment'] = [{
             'name':    attach_name,
             'content': base64.b64encode(attachment).decode('utf-8'),
         }]
-
+ 
     response = requests.post(
         'https://api.brevo.com/v3/smtp/email',
         json    = payload,
@@ -185,8 +218,8 @@ def send_email_raw(to_email: str, subject: str, html_body: str,
     if response.status_code not in (200, 201):
         raise RuntimeError(f'Brevo error {response.status_code}: {response.text[:200]}')
     print("[LOG-INFO]", f'[EMAIL OK con adjunto] {subject} → {to_email}')
-
-
+ 
+ 
 def _log_notification(client_id, channel, message, success, error=''):
     try:
         status = 'enviado' if success else 'error'
@@ -206,8 +239,8 @@ def _log_notification(client_id, channel, message, success, error=''):
         except Exception:
             pass
     return success
-
-
+ 
+ 
 def _base_template(titulo: str, contenido: str) -> str:
     return f"""
     <!DOCTYPE html>
@@ -218,7 +251,7 @@ def _base_template(titulo: str, contenido: str) -> str:
         <tr><td align="center">
           <table width="600" cellpadding="0" cellspacing="0" style="background:#ffffff;border-radius:8px;overflow:hidden;box-shadow:0 2px 8px rgba(0,0,0,.1);">
             <tr><td style="background:#1a1a2e;padding:24px 32px;">
-              <h1 style="margin:0;color:#ffffff;font-size:22px;letter-spacing:1px;">💪 BODY-FIT GYM</h1>
+              <h1 style="margin:0;color:#ffffff;font-size:22px;letter-spacing:1px;">💪 L-GYM</h1>
             </td></tr>
             <tr><td style="background:#e63946;padding:16px 32px;">
               <h2 style="margin:0;color:#ffffff;font-size:18px;">{titulo}</h2>
@@ -226,7 +259,7 @@ def _base_template(titulo: str, contenido: str) -> str:
             <tr><td style="padding:32px;">{contenido}</td></tr>
             <tr><td style="background:#f8f8f8;padding:16px 32px;border-top:1px solid #eeeeee;">
               <p style="margin:0;color:#999999;font-size:12px;text-align:center;">
-                Este es un mensaje automático de Body-Fit Gym.<br>
+                Este es un mensaje automático de L-GYM.<br>
                 Por favor no respondas a este correo.
               </p>
             </td></tr>
@@ -236,17 +269,17 @@ def _base_template(titulo: str, contenido: str) -> str:
     </body>
     </html>
     """
-
-
+ 
+ 
 class NotificationService:
-
+ 
     @staticmethod
     def send_welcome(client):
         if not client.email:
             return False
         contenido = f"""
         <p style="color:#333;font-size:16px;">Hola <strong>{client.full_name}</strong>,</p>
-        <p style="color:#555;">¡Bienvenido(a) a <strong>Body-Fit Gym</strong>! 🎉</p>
+        <p style="color:#555;">¡Bienvenido(a) a <strong>L-GYM</strong>! 🎉</p>
         <p style="color:#555;">Tu registro ha sido completado exitosamente.</p>
         <table style="background:#f8f8f8;border-radius:6px;padding:16px;width:100%;margin:16px 0;">
           <tr><td style="color:#666;padding:4px 0;"><strong>Nombre:</strong></td><td style="color:#333;">{client.full_name}</td></tr>
@@ -255,21 +288,37 @@ class NotificationService:
         </table>
         <p style="color:#555;">Ya puedes acercarte al gimnasio y activar tu membresía. ¡Nos vemos! 💪</p>
         """
-        html = _base_template('¡Bienvenido a Body-Fit!', contenido)
-        ok, err = _send_brevo(client.email, '¡Bienvenido a Body-Fit Gym! 💪', html)
+        html = _base_template('¡Bienvenido a L-GYM!', contenido)
+        ok, err = _send_brevo(client.email, '¡Bienvenido a L-GYM! 💪', html)
         return _log_notification(client.id, 'email', f'Bienvenida: {client.full_name}', ok, err)
-
+ 
     @staticmethod
     def send_payment_confirmation(payment):
         client = payment.client
         if not client or not client.email:
             return False
+
+        # ── Productos vendidos junto con la membresía (si los hay) ──
+        productos_html = ""
+        if getattr(payment, 'items', None):
+            filas = "".join(
+                f"<tr><td style=\"color:#666;padding:2px 0 2px 12px;\">• {i.product.name} x{i.quantity}</td>"
+                f"<td style=\"color:#333;text-align:right;\">${'{:,.0f}'.format(i.subtotal)}</td></tr>"
+                for i in payment.items if i.product
+            )
+            if filas:
+                productos_html = (
+                    f"<tr><td colspan=\"2\" style=\"color:#666;padding:8px 0 2px 0;\"><strong>Productos:</strong></td></tr>"
+                    f"{filas}"
+                )
+
         contenido = f"""
         <p style="color:#333;font-size:16px;">Hola <strong>{client.full_name}</strong>,</p>
         <p style="color:#555;">Tu pago ha sido registrado. ¡Tu membresía está activa! ✅</p>
         <table style="background:#f8f8f8;border-radius:6px;padding:16px;width:100%;margin:16px 0;">
           <tr><td style="color:#666;padding:4px 0;"><strong>Plan:</strong></td><td style="color:#333;">{payment.membership.name}</td></tr>
-          <tr><td style="color:#666;padding:4px 0;"><strong>Monto:</strong></td><td style="color:#333;font-weight:bold;">${'{:,.0f}'.format(payment.amount)} COP</td></tr>
+          {productos_html}
+          <tr><td style="color:#666;padding:4px 0;"><strong>Monto total:</strong></td><td style="color:#333;font-weight:bold;">${'{:,.0f}'.format(payment.amount)} COP</td></tr>
           <tr><td style="color:#666;padding:4px 0;"><strong>Método:</strong></td><td style="color:#333;">{payment.payment_method}</td></tr>
           <tr><td style="color:#666;padding:4px 0;"><strong>Válido desde:</strong></td><td style="color:#333;">{payment.start_date.strftime('%d/%m/%Y')}</td></tr>
           <tr><td style="color:#666;padding:4px 0;"><strong>Vence el:</strong></td><td style="color:#e63946;font-weight:bold;">{payment.end_date.strftime('%d/%m/%Y')}</td></tr>
@@ -279,7 +328,7 @@ class NotificationService:
         html = _base_template('Pago Confirmado ✅', contenido)
         ok, err = _send_brevo(client.email, f'Pago confirmado — {payment.membership.name}', html)
         return _log_notification(client.id, 'email', f'Pago confirmado: ${payment.amount}', ok, err)
-
+ 
     @staticmethod
     def send_expiry_warning(payment, days_left: int):
         client = payment.client
@@ -297,9 +346,9 @@ class NotificationService:
         <p style="color:#555;">Renueva antes de que venza para no perder días de entrenamiento. 💪</p>
         """
         html = _base_template(f'Tu membresía vence {dias_texto} {emoji}', contenido)
-        ok, err = _send_brevo(client.email, f'{emoji} Tu membresía vence {dias_texto} — Body-Fit', html)
+        ok, err = _send_brevo(client.email, f'{emoji} Tu membresía vence {dias_texto} — L-GYM', html)
         return _log_notification(client.id, 'email', f'Aviso vencimiento: {days_left} días', ok, err)
-
+ 
     @staticmethod
     def send_expired_notice(payment):
         client = payment.client
@@ -315,9 +364,9 @@ class NotificationService:
         <p style="color:#555;">¡Te esperamos de vuelta! 💪</p>
         """
         html = _base_template('Tu membresía ha vencido ❌', contenido)
-        ok, err = _send_brevo(client.email, '❌ Tu membresía en Body-Fit ha vencido — ¡Renueva!', html)
+        ok, err = _send_brevo(client.email, '❌ Tu membresía en L-GYM ha vencido — ¡Renueva!', html)
         return _log_notification(client.id, 'email', f'Membresía expirada: {payment.end_date}', ok, err)
-
+ 
     @staticmethod
     def send_password_reset(user):
         contenido = f"""
@@ -327,16 +376,16 @@ class NotificationService:
         <p style="color:#555;">Comunícate con el administrador del sistema para continuar.</p>
         """
         html = _base_template('Recuperación de Contraseña 🔐', contenido)
-        ok, err = _send_brevo(user.email, 'Recuperación de contraseña — Body-Fit', html)
+        ok, err = _send_brevo(user.email, 'Recuperación de contraseña — L-GYM', html)
         return _log_notification(None, 'email', f'Reset password: {user.email}', ok, err)
-
+ 
     @staticmethod
     def send_email(to_email, subject, body, client_id=None):
         html = _base_template(subject, f'<p style="color:#555;">{body}</p>')
         ok, err = _send_brevo(to_email, subject, html)
         return _log_notification(client_id, 'email', subject[:100], ok, err)
-
-
+ 
+ 
     @staticmethod
     def send_couple_plan_notification(partner_payment, main_client):
         """
@@ -360,5 +409,6 @@ class NotificationService:
         <p style="color:#555;">¡Nos vemos en el gym! 💪</p>
         """
         html = _base_template('¡Tu Plan Pareja está activo! 💑', contenido)
-        ok, err = _send_brevo(partner.email, '💑 Tu Plan Pareja en Body-Fit está activo', html)
+        ok, err = _send_brevo(partner.email, '💑 Tu Plan Pareja en L-GYM está activo', html)
         return _log_notification(partner.id, 'email', 'Plan Pareja activado', ok, err)
+ 

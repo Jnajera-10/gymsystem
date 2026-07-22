@@ -24,6 +24,14 @@ class Client(db.Model):
     created_at = db.Column(db.DateTime, default=lambda: datetime.now(BOGOTA))
     updated_at = db.Column(db.DateTime, onupdate=lambda: datetime.now(BOGOTA))
 
+    # ── Reconocimiento facial ────────────────────────────────────────
+    # face_embedding: JSON (lista de floats) generado por face-api.js en el navegador.
+    # Se guarda como texto (JSON) para no depender de extensiones de PostgreSQL.
+    face_embedding = db.Column(db.Text)
+    face_registered_at = db.Column(db.DateTime)
+    biometric_consent = db.Column(db.Boolean, default=False)
+    biometric_consent_at = db.Column(db.DateTime)
+
     payments = db.relationship(
         'Payment',
         foreign_keys='Payment.client_id',

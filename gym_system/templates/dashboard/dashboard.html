@@ -253,7 +253,12 @@
 </div>
 
 {# Resto del dashboard original: título y tarjetas #}
-<h4 class="mb-4"><i class="fas fa-tachometer-alt me-2"></i>Dashboard</h4>
+<div class="d-flex justify-content-between align-items-center mb-4 flex-wrap gap-2">
+    <h4 class="mb-0"><i class="fas fa-tachometer-alt me-2"></i>Dashboard</h4>
+    <button type="button" class="btn btn-primary btn-sm" data-bs-toggle="modal" data-bs-target="#lookupModal">
+        <i class="fas fa-search me-1"></i>Consultar Cliente
+    </button>
+</div>
 
 
 {# ── Tarjetas de resumen ───────────────────────────────────────────── #}
@@ -926,6 +931,201 @@
         document.getElementById('modal-membership-name').textContent = btn.dataset.membershipName;
         document.getElementById('btn-same-plan').href                = btn.dataset.renewUrl;
         document.getElementById('btn-change-plan').href              = btn.dataset.changeUrl;
+    });
+})();
+</script>
+
+<!-- ── Modal: Consultar Cliente ─────────────────────────────────────── -->
+<div class="modal fade" id="lookupModal" tabindex="-1">
+    <div class="modal-dialog modal-dialog-centered">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title"><i class="fas fa-search me-2"></i>Consultar Cliente</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body">
+                <ul class="nav nav-tabs mb-3" role="tablist">
+                    <li class="nav-item">
+                        <button class="nav-link active" data-bs-toggle="tab" data-bs-target="#tabByName" type="button">
+                            <i class="fas fa-keyboard me-1"></i>Nombre / Cédula
+                        </button>
+                    </li>
+                    <li class="nav-item">
+                        <button class="nav-link" data-bs-toggle="tab" data-bs-target="#tabByFace" type="button"
+                                id="tabByFaceBtn">
+                            <i class="fas fa-camera-retro me-1"></i>Reconocimiento Facial
+                        </button>
+                    </li>
+                </ul>
+
+                <div class="tab-content">
+                    <!-- Buscar por nombre o cédula -->
+                    <div class="tab-pane fade show active" id="tabByName">
+                        <div class="position-relative">
+                            <input type="text" id="lookupSearchInput" class="form-control"
+                                   placeholder="Escribe un nombre o número de documento…" autocomplete="off">
+                            <div id="lookupSearchDropdown"
+                                 style="display:none;position:absolute;z-index:10;width:100%;background:#fff;
+                                        border:1px solid #dee2e6;border-radius:6px;max-height:240px;overflow-y:auto;">
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Reconocimiento facial -->
+                    <div class="tab-pane fade" id="tabByFace">
+                        <div class="text-center">
+                            <video id="lookupVideo" width="360" height="270" muted playsinline
+                                   style="border-radius:8px;background:#111;"></video>
+                            <div class="mt-2">
+                                <button type="button" class="btn btn-sm btn-outline-secondary" id="btnSwitchLookupCam">
+                                    <i class="fas fa-sync-alt me-1"></i>Cambiar cámara
+                                </button>
+                            </div>
+                            <div id="lookupFaceStatus" class="mt-2 small text-muted">
+                                <i class="fas fa-info-circle me-1"></i>Abre esta pestaña para activar la cámara.
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cerrar</button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<script defer src="https://cdn.jsdelivr.net/npm/face-api.js@0.22.2/dist/face-api.min.js"></script>
+<script src="{{ url_for('static', filename='js/face_common.js') }}"></script>
+<script>
+// ── Consultar Cliente: búsqueda por nombre/cédula ──────────────────────
+(function() {
+    const input    = document.getElementById('lookupSearchInput');
+    const dropdown = document.getElementById('lookupSearchDropdown');
+    let timer = null;
+
+    input.addEventListener('input', function() {
+        clearTimeout(timer);
+        const q = input.value.trim();
+        if (q.length < 1) { dropdown.style.display = 'none'; return; }
+        timer = setTimeout(function() {
+            fetch('/clients/search?q=' + encodeURIComponent(q))
+                .then(r => r.json())
+                .then(results => {
+                    dropdown.innerHTML = '';
+                    if (!results.length) {
+                        dropdown.innerHTML = '<div class="p-2 text-muted small">No se encontró ningún cliente</div>';
+                        dropdown.style.display = 'block';
+                        return;
+                    }
+                    results.forEach(r => {
+                        const div = document.createElement('div');
+                        div.className = 'p-2 border-bottom';
+                        div.style.cursor = 'pointer';
+                        div.textContent = r.text;
+                        div.addEventListener('mousedown', e => {
+                            e.preventDefault();
+                            window.location.href = '/clients/' + r.id;
+                        });
+                        div.addEventListener('mouseenter', () => div.style.background = '#f1f3f5');
+                        div.addEventListener('mouseleave', () => div.style.background = '');
+                        dropdown.appendChild(div);
+                    });
+                    dropdown.style.display = 'block';
+                })
+                .catch(() => { dropdown.style.display = 'none'; });
+        }, 250);
+    });
+
+    document.addEventListener('click', function(e) {
+        if (!dropdown.contains(e.target) && e.target !== input) {
+            dropdown.style.display = 'none';
+        }
+    });
+})();
+
+// ── Consultar Cliente: reconocimiento facial ───────────────────────────
+(function() {
+    const video      = document.getElementById('lookupVideo');
+    const statusEl   = document.getElementById('lookupFaceStatus');
+    const tabFaceBtn = document.getElementById('tabByFaceBtn');
+    const lookupModal = document.getElementById('lookupModal');
+
+    let stream        = null;
+    let modelsReady   = false;
+    let scanning      = false;
+    let scanTimer     = null;
+    let currentFacing = 'user';
+
+    function setStatus(html) { statusEl.innerHTML = html; }
+
+    async function startFaceTab() {
+        try {
+            if (!modelsReady) {
+                setStatus('<i class="fas fa-spinner fa-spin me-1"></i>Cargando modelos…');
+                await loadFaceModels();
+                modelsReady = true;
+            }
+            setStatus('<i class="fas fa-video me-1"></i>Iniciando cámara…');
+            stream = await startCamera(video, currentFacing);
+            setStatus('<i class="fas fa-search me-1"></i>Buscando rostro…');
+            scanTimer = setInterval(scanOnce, 1200);
+        } catch (err) {
+            console.error(err);
+            setStatus('<i class="fas fa-exclamation-triangle text-danger me-1"></i>No se pudo acceder a la cámara.');
+        }
+    }
+
+    function stopFaceTab() {
+        clearInterval(scanTimer);
+        stopCamera(stream);
+        stream = null;
+    }
+
+    async function scanOnce() {
+        if (scanning) return;
+        scanning = true;
+        try {
+            const embedding = await getFaceEmbedding(video);
+            if (!embedding) {
+                setStatus('<i class="fas fa-search me-1"></i>Buscando rostro…');
+                scanning = false;
+                return;
+            }
+            setStatus('<i class="fas fa-spinner fa-spin me-1"></i>Verificando…');
+            const res = await fetch('/api/face/lookup', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ embedding }),
+            });
+            const data = await res.json();
+            if (data.status === 'found') {
+                setStatus(`<i class="fas fa-check-circle text-success me-1"></i>${data.client_name} encontrado. Redirigiendo…`);
+                clearInterval(scanTimer);
+                setTimeout(() => { window.location.href = '/clients/' + data.client_id; }, 700);
+            } else {
+                setStatus('<i class="fas fa-question-circle text-muted me-1"></i>Rostro no reconocido. Sigue intentando…');
+            }
+        } catch (err) {
+            console.error(err);
+            setStatus('<i class="fas fa-exclamation-triangle text-danger me-1"></i>Error de conexión.');
+        }
+        scanning = false;
+    }
+
+    tabFaceBtn.addEventListener('shown.bs.tab', startFaceTab);
+    lookupModal.addEventListener('hidden.bs.modal', stopFaceTab);
+
+    document.getElementById('btnSwitchLookupCam').addEventListener('click', async () => {
+        currentFacing = currentFacing === 'user' ? 'environment' : 'user';
+        stopCamera(stream);
+        setStatus('<i class="fas fa-video me-1"></i>Cambiando de cámara…');
+        try {
+            stream = await startCamera(video, currentFacing);
+            setStatus('<i class="fas fa-search me-1"></i>Buscando rostro…');
+        } catch (err) {
+            setStatus('<i class="fas fa-exclamation-triangle text-danger me-1"></i>Esta cámara no está disponible.');
+        }
     });
 })();
 </script>

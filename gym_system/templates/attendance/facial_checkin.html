@@ -1,0 +1,134 @@
+{% extends "layouts/base.html" %}
+{% block title %}Check-in Facial{% endblock %}
+{% block content %}
+<div class="d-flex justify-content-between align-items-center mb-4">
+    <h4 class="mb-0"><i class="fas fa-camera-retro me-2"></i>Check-in por Reconocimiento Facial</h4>
+    <a href="{{ url_for('attendance.index') }}" class="btn btn-outline-secondary btn-sm">
+        <i class="fas fa-arrow-left me-1"></i>Asistencia manual
+    </a>
+</div>
+
+<div class="row justify-content-center">
+    <div class="col-md-6">
+        <div class="card shadow-sm">
+            <div class="card-body text-center">
+                <div class="position-relative d-inline-block">
+                    <video id="video" width="480" height="360" muted playsinline
+                           style="border-radius:10px;background:#111;"></video>
+                    <div id="scanOverlay"
+                         style="position:absolute;inset:0;border:4px solid transparent;border-radius:10px;transition:border-color .2s;"></div>
+                </div>
+
+                <div class="mt-2">
+                    <button type="button" class="btn btn-sm btn-outline-secondary" id="btnSwitchCam">
+                        <i class="fas fa-sync-alt me-1"></i>Cambiar cámara
+                    </button>
+                </div>
+
+                <div id="statusBox" class="mt-3 p-3 rounded"
+                     style="min-height:70px;background:#f8f9fa;">
+                    <span id="statusText" class="fw-semibold text-muted">
+                        <i class="fas fa-spinner fa-spin me-1"></i>Cargando modelos de reconocimiento…
+                    </span>
+                </div>
+
+                <p class="text-muted small mt-2 mb-0">
+                    <i class="fas fa-info-circle me-1"></i>
+                    Párate frente a la cámara. El check-in se registra automáticamente al reconocer tu rostro.
+                </p>
+            </div>
+        </div>
+    </div>
+</div>
+
+<script defer src="https://cdn.jsdelivr.net/npm/face-api.js@0.22.2/dist/face-api.min.js"></script>
+<script src="{{ url_for('static', filename='js/face_common.js') }}"></script>
+<script>
+document.addEventListener('DOMContentLoaded', () => {
+    const video       = document.getElementById('video');
+    const statusText  = document.getElementById('statusText');
+    const scanOverlay = document.getElementById('scanOverlay');
+
+    let stream        = null;
+    let scanning      = false;   // evita solicitudes solapadas
+    let cooldownUntil = 0;       // evita registrar el mismo rostro repetidamente
+    let currentFacing = 'environment'; // cámara trasera por defecto (celular montado en la entrada)
+
+    function setStatus(html, color) {
+        statusText.innerHTML = html;
+        scanOverlay.style.borderColor = color || 'transparent';
+    }
+
+    async function init() {
+        try {
+            await loadFaceModels();
+            setStatus('<i class="fas fa-video me-1"></i>Iniciando cámara…', null);
+            stream = await startCamera(video, currentFacing);
+            setStatus('<i class="fas fa-search me-1"></i>Buscando rostro…', null);
+            loopScan();
+        } catch (err) {
+            console.error(err);
+            setStatus('<i class="fas fa-exclamation-triangle me-1 text-danger"></i>No se pudo acceder a la cámara. Revisa los permisos del navegador.', '#dc3545');
+        }
+    }
+
+    document.getElementById('btnSwitchCam').addEventListener('click', async () => {
+        currentFacing = currentFacing === 'environment' ? 'user' : 'environment';
+        stopCamera(stream);
+        setStatus('<i class="fas fa-video me-1"></i>Cambiando de cámara…', null);
+        try {
+            stream = await startCamera(video, currentFacing);
+            setStatus('<i class="fas fa-search me-1"></i>Buscando rostro…', null);
+        } catch (err) {
+            console.error(err);
+            setStatus('<i class="fas fa-exclamation-triangle me-1 text-danger"></i>Esta cámara no está disponible en tu dispositivo.', '#dc3545');
+        }
+    });
+
+    async function loopScan() {
+        setInterval(async () => {
+            if (scanning || Date.now() < cooldownUntil) return;
+            scanning = true;
+            try {
+                const embedding = await getFaceEmbedding(video);
+                if (!embedding) {
+                    setStatus('<i class="fas fa-search me-1"></i>Buscando rostro…', null);
+                    scanning = false;
+                    return;
+                }
+                setStatus('<i class="fas fa-spinner fa-spin me-1"></i>Verificando…', '#0d6efd');
+                const res = await fetch("{{ url_for('face.verify_face') }}", {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ embedding }),
+                });
+                const data = await res.json();
+                handleResult(data);
+            } catch (err) {
+                console.error(err);
+                setStatus('<i class="fas fa-exclamation-triangle me-1"></i>Error de conexión.', '#dc3545');
+            }
+            scanning = false;
+        }, 1200);
+    }
+
+    function handleResult(data) {
+        if (data.status === 'checked_in') {
+            setStatus(`<i class="fas fa-check-circle me-1 text-success"></i>${data.message}`, '#198754');
+            cooldownUntil = Date.now() + 8000; // 8s antes de volver a intentar
+        } else if (data.status === 'no_membership') {
+            setStatus(`<i class="fas fa-exclamation-triangle me-1 text-warning"></i>${data.message}`, '#ffc107');
+            cooldownUntil = Date.now() + 6000;
+        } else if (data.status === 'not_found') {
+            setStatus('<i class="fas fa-question-circle me-1 text-muted"></i>Rostro no reconocido.', '#6c757d');
+        } else {
+            setStatus(`<i class="fas fa-exclamation-triangle me-1"></i>${data.message || 'Error'}`, '#dc3545');
+        }
+    }
+
+    init();
+
+    window.addEventListener('beforeunload', () => stopCamera(stream));
+});
+</script>
+{% endblock %}

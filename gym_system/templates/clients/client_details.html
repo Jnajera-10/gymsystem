@@ -60,6 +60,35 @@
             </div>
         </div>
 
+        <!-- ── Reconocimiento facial ───────────────────────────── -->
+        <div class="card shadow-sm mb-3">
+            <div class="card-header fw-semibold">
+                <i class="fas fa-camera-retro me-2 text-info"></i>Reconocimiento Facial
+            </div>
+            <div class="card-body">
+                {% if client.face_registered_at %}
+                    <p class="mb-2 text-success">
+                        <i class="fas fa-check-circle me-1"></i>
+                        Rostro registrado el {{ client.face_registered_at.strftime('%d/%m/%Y %H:%M') }}
+                    </p>
+                    <button type="button" class="btn btn-sm btn-outline-secondary me-2"
+                            onclick="openFaceModal()">
+                        <i class="fas fa-redo me-1"></i>Volver a capturar
+                    </button>
+                    <button type="button" class="btn btn-sm btn-outline-danger" id="btnClearFace">
+                        <i class="fas fa-trash me-1"></i>Eliminar rostro
+                    </button>
+                {% else %}
+                    <p class="mb-2 text-muted small">
+                        Este cliente aún no tiene rostro registrado para el check-in facial.
+                    </p>
+                    <button type="button" class="btn btn-sm btn-primary" onclick="openFaceModal()">
+                        <i class="fas fa-camera me-1"></i>Registrar rostro
+                    </button>
+                {% endif %}
+            </div>
+        </div>
+
         <!-- ── Membresía actual + botón Renovar ───────────────── -->
         <div class="card shadow-sm">
             <div class="card-header fw-semibold d-flex justify-content-between align-items-center">
@@ -182,4 +211,151 @@
         </div>
     </div>
 </div>
+
+<!-- ── Modal: registrar rostro ──────────────────────────────────────── -->
+<div class="modal fade" id="faceModal" tabindex="-1">
+    <div class="modal-dialog modal-dialog-centered">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title"><i class="fas fa-camera me-2"></i>Registrar rostro — {{ client.full_name }}</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body text-center">
+                <video id="faceVideo" width="360" height="270" muted playsinline
+                       style="border-radius:8px;background:#111;"></video>
+
+                <div class="mt-2">
+                    <button type="button" class="btn btn-sm btn-outline-secondary" id="btnSwitchFaceCam">
+                        <i class="fas fa-sync-alt me-1"></i>Cambiar cámara
+                    </button>
+                </div>
+
+                <div class="form-check mt-3 text-start">
+                    <input class="form-check-input" type="checkbox" id="consentCheck"
+                           {% if client.biometric_consent %}checked disabled{% endif %}>
+                    <label class="form-check-label small" for="consentCheck">
+                        El cliente autoriza el uso de su rostro (dato biométrico) exclusivamente
+                        para el check-in de asistencia, conforme a la Ley de Habeas Data.
+                    </label>
+                </div>
+
+                <div id="faceStatus" class="mt-2 small text-muted">
+                    <i class="fas fa-spinner fa-spin me-1"></i>Cargando cámara…
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancelar</button>
+                <button type="button" class="btn btn-primary" id="btnCaptureFace" disabled>
+                    <i class="fas fa-camera me-1"></i>Capturar y guardar
+                </button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<script defer src="https://cdn.jsdelivr.net/npm/face-api.js@0.22.2/dist/face-api.min.js"></script>
+<script src="{{ url_for('static', filename='js/face_common.js') }}"></script>
+<script>
+const CLIENT_ID = {{ client.id }};
+let faceStream = null;
+let modelsReady = false;
+let faceCurrentFacing = 'user'; // frontal por defecto: normalmente el empleado le toma la foto al cliente de frente
+
+async function openFaceModal() {
+    const modalEl = document.getElementById('faceModal');
+    const modal = bootstrap.Modal.getOrCreateInstance(modalEl);
+    modal.show();
+
+    const video      = document.getElementById('faceVideo');
+    const statusEl   = document.getElementById('faceStatus');
+    const btnCapture = document.getElementById('btnCaptureFace');
+    btnCapture.disabled = true;
+
+    try {
+        if (!modelsReady) {
+            statusEl.innerHTML = '<i class="fas fa-spinner fa-spin me-1"></i>Cargando modelos…';
+            await loadFaceModels();
+            modelsReady = true;
+        }
+        statusEl.innerHTML = '<i class="fas fa-video me-1"></i>Iniciando cámara…';
+        faceStream = await startCamera(video, faceCurrentFacing);
+        statusEl.innerHTML = '<i class="fas fa-info-circle me-1"></i>Ubica el rostro dentro del cuadro y pulsa "Capturar".';
+        btnCapture.disabled = false;
+    } catch (err) {
+        console.error(err);
+        statusEl.innerHTML = '<i class="fas fa-exclamation-triangle text-danger me-1"></i>No se pudo acceder a la cámara.';
+    }
+}
+
+document.getElementById('btnSwitchFaceCam').addEventListener('click', async () => {
+    faceCurrentFacing = faceCurrentFacing === 'user' ? 'environment' : 'user';
+    const video    = document.getElementById('faceVideo');
+    const statusEl = document.getElementById('faceStatus');
+    stopCamera(faceStream);
+    statusEl.innerHTML = '<i class="fas fa-video me-1"></i>Cambiando de cámara…';
+    try {
+        faceStream = await startCamera(video, faceCurrentFacing);
+        statusEl.innerHTML = '<i class="fas fa-info-circle me-1"></i>Ubica el rostro dentro del cuadro y pulsa "Capturar".';
+    } catch (err) {
+        console.error(err);
+        statusEl.innerHTML = '<i class="fas fa-exclamation-triangle text-danger me-1"></i>Esta cámara no está disponible en tu dispositivo.';
+    }
+});
+
+document.getElementById('faceModal').addEventListener('hidden.bs.modal', () => {
+    stopCamera(faceStream);
+});
+
+document.getElementById('btnCaptureFace').addEventListener('click', async () => {
+    const video      = document.getElementById('faceVideo');
+    const statusEl   = document.getElementById('faceStatus');
+    const consent    = document.getElementById('consentCheck').checked;
+    const btnCapture = document.getElementById('btnCaptureFace');
+
+    if (!consent) {
+        statusEl.innerHTML = '<i class="fas fa-exclamation-triangle text-warning me-1"></i>Se necesita el consentimiento del cliente antes de guardar su rostro.';
+        return;
+    }
+
+    btnCapture.disabled = true;
+    statusEl.innerHTML = '<i class="fas fa-spinner fa-spin me-1"></i>Analizando rostro…';
+
+    const embedding = await getFaceEmbedding(video);
+    if (!embedding) {
+        statusEl.innerHTML = '<i class="fas fa-exclamation-triangle text-danger me-1"></i>No se detectó ningún rostro. Intenta de nuevo.';
+        btnCapture.disabled = false;
+        return;
+    }
+
+    try {
+        const res = await fetch(`/api/face/register/${CLIENT_ID}`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ embedding, consent }),
+        });
+        const data = await res.json();
+        if (data.ok) {
+            statusEl.innerHTML = `<i class="fas fa-check-circle text-success me-1"></i>${data.message}`;
+            setTimeout(() => window.location.reload(), 900);
+        } else {
+            statusEl.innerHTML = `<i class="fas fa-exclamation-triangle text-danger me-1"></i>${data.error}`;
+            btnCapture.disabled = false;
+        }
+    } catch (err) {
+        console.error(err);
+        statusEl.innerHTML = '<i class="fas fa-exclamation-triangle text-danger me-1"></i>Error de conexión.';
+        btnCapture.disabled = false;
+    }
+});
+
+const btnClearFace = document.getElementById('btnClearFace');
+if (btnClearFace) {
+    btnClearFace.addEventListener('click', async () => {
+        if (!confirm('¿Eliminar el rostro registrado de este cliente?')) return;
+        const res = await fetch(`/api/face/clear/${CLIENT_ID}`, { method: 'POST' });
+        const data = await res.json();
+        if (data.ok) window.location.reload();
+    });
+}
+</script>
 {% endblock %}

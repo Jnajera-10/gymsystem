@@ -325,14 +325,14 @@ class PaymentsController:
                 f"🕑 *Hora eliminacion:* {hora}\n"
                 f"{'-'*28}\n"
                 f"⚠️ Este pago fue eliminado del sistema."
-                + (f"\n♻️ Tambien se elimino el espejo Plan Pareja #{mirror.id}." if mirror else "")
+                + (f"\n♻️ También se eliminaron {len(mirrors)} registro(s) espejo vinculado(s) (Plan Pareja/Familiar)." if mirrors else "")
             )
             send_telegram_owner(msg)
         except Exception as exc:
             logger.error(f'[WHATSAPP] Error notificando eliminación: {exc}')
 
-        if mirror:
-            flash('Pago eliminado (incluyendo el registro espejo del Plan Pareja).', 'warning')
+        if mirrors:
+            flash(f'Pago eliminado (incluyendo {len(mirrors)} registro(s) espejo vinculado(s)).', 'warning')
         else:
             flash('Pago eliminado.', 'warning')
         return redirect(url_for('payments.index'))

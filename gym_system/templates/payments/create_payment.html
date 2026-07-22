@@ -196,6 +196,7 @@
                         <div class="row g-2 align-items-center mb-2 payment-method-row" id="method_row_1">
                             <div class="col-md-4">
                                 <select name="method_1" class="form-select method-select" required>
+                                    <option value="" selected disabled>Selecciona un método</option>
                                     <option value="efectivo">💵 Efectivo</option>
                                     <option value="transferencia">🏦 Transferencia</option>
                                     <option value="nequi">📱 Nequi</option>
@@ -223,6 +224,7 @@
                         <div class="row g-2 align-items-center mb-2 payment-method-row" id="method_row_{{ i }}" style="display:none">
                             <div class="col-md-4">
                                 <select name="method_{{ i }}" class="form-select method-select">
+                                    <option value="" selected disabled>Selecciona un método</option>
                                     <option value="efectivo">💵 Efectivo</option>
                                     <option value="transferencia">🏦 Transferencia</option>
                                     <option value="nequi">📱 Nequi</option>

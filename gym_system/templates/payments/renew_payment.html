@@ -131,7 +131,8 @@
                 {# ── Método de pago ── #}
                 <div class="col-md-6">
                     <label class="form-label">Método de Pago</label>
-                    <select name="payment_method" class="form-select">
+                    <select name="payment_method" class="form-select" required>
+                        <option value="" selected disabled>Selecciona un método</option>
                         <option value="efectivo">Efectivo</option>
                         <option value="nequi">Nequi</option>
                         <option value="transferencia">Transferencia</option>

@@ -40,3 +40,12 @@ class Membership(db.Model):
     @property
     def is_student_plan(self):
         return self.membership_type == 'estudiantil'
+
+    @property
+    def is_familiar_plan(self):
+        return self.membership_type == 'familiar'
+
+
+# Plan Familiar: mínimo y máximo de integrantes (incluye al cliente principal)
+MIN_FAMILIAR_MEMBERS = 3
+MAX_FAMILIAR_MEMBERS = 6

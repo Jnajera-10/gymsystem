@@ -52,7 +52,8 @@
             </div>
             <div class="mb-3">
                 <label class="form-label fw-semibold">Método de Pago</label>
-                <select name="payment_method" class="form-select">
+                <select name="payment_method" class="form-select" required>
+                    <option value="" selected disabled>Selecciona un método</option>
                     <option value="efectivo">Efectivo</option>
                     <option value="transferencia">Transferencia</option>
                     <option value="tarjeta">Tarjeta</option>

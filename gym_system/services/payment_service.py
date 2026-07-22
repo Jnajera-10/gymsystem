@@ -15,7 +15,7 @@ class PaymentService:
     def register_payment(form_data):
         membership = Membership.query.get(form_data['membership_id'])
         if not membership:
-            return None, None, 'Membresía no encontrada.'
+            return None, None, 'Membresía no encontrada.', None
 
         start_date = datetime.strptime(form_data['start_date'], '%Y-%m-%d').date()
         end_date   = start_date + timedelta(days=membership.duration_days - 1)
@@ -41,18 +41,41 @@ class PaymentService:
         if membership.is_couple_plan:
             raw_partner = form_data.get('partner_client_id', '').strip()
             if not raw_partner:
-                return None, None, 'El Plan Pareja requiere seleccionar un segundo cliente.'
+                return None, None, 'El Plan Pareja requiere seleccionar un segundo cliente.', None
             partner_client_id = int(raw_partner)
             if partner_client_id == int(form_data['client_id']):
-                return None, None, 'Los dos clientes del Plan Pareja deben ser diferentes.'
+                return None, None, 'Los dos clientes del Plan Pareja deben ser diferentes.', None
             partner = Client.query.get(partner_client_id)
             if not partner or not partner.is_active:
-                return None, None, 'El segundo cliente del Plan Pareja no existe o está inactivo.'
+                return None, None, 'El segundo cliente del Plan Pareja no existe o está inactivo.', None
 
         # --- Validación: Plan Estudiantil ---
         if membership.is_student_plan:
             if form_data.get('is_student') != 'on':
-                return None, None, 'El Plan Estudiantil es exclusivo para bachilleres. Confirma el requisito.'
+                return None, None, 'El Plan Estudiantil es exclusivo para bachilleres. Confirma el requisito.', None
+
+        # --- Validación: Plan Familiar (mínimo 3, máximo 6 integrantes) ---
+        familiar_member_ids = []
+        if membership.is_familiar_plan:
+            from database.models.membership import MIN_FAMILIAR_MEMBERS, MAX_FAMILIAR_MEMBERS
+            main_client_id = int(form_data['client_id'])
+            seen_ids = {main_client_id}
+            for i in range(2, MAX_FAMILIAR_MEMBERS + 1):
+                raw = form_data.get(f'familiar_member_{i}', '').strip()
+                if not raw:
+                    continue
+                member_id = int(raw)
+                if member_id in seen_ids:
+                    return None, None, 'No puedes agregar el mismo cliente dos veces en el Plan Familiar.', None
+                member = Client.query.get(member_id)
+                if not member or not member.is_active:
+                    return None, None, f'El integrante #{i} del Plan Familiar no existe o está inactivo.', None
+                seen_ids.add(member_id)
+                familiar_member_ids.append(member_id)
+
+            total_members = 1 + len(familiar_member_ids)
+            if total_members < MIN_FAMILIAR_MEMBERS:
+                return None, None, f'El Plan Familiar requiere mínimo {MIN_FAMILIAR_MEMBERS} integrantes.', None
 
         # --- Pago mixto: leer métodos y montos ---
         cash_received = None
@@ -139,6 +162,24 @@ class PaymentService:
             )
             db.session.add(partner_payment)
 
+        # --- Plan Familiar: pago espejo para cada integrante adicional ---
+        familiar_payments = []
+        if membership.is_familiar_plan and familiar_member_ids:
+            primary_method = payment_method_str.split(':')[0].split('|')[0].strip()
+            for member_id in familiar_member_ids:
+                fam_payment = Payment(
+                    client_id        = member_id,
+                    membership_id    = int(form_data['membership_id']),
+                    amount           = 0,
+                    start_date       = start_date,
+                    end_date         = end_date,
+                    payment_method   = primary_method,
+                    notes            = f'Plan Familiar — vinculado al pago del cliente #{form_data["client_id"]}',
+                    partner_client_id= int(form_data['client_id']),
+                )
+                db.session.add(fam_payment)
+                familiar_payments.append(fam_payment)
+
         db.session.commit()
 
         # ── Asistencia automática al registrar pago ────────────────────
@@ -153,10 +194,8 @@ class PaymentService:
         if _dc:
             diario_id = _dc.id
 
-        for client_id_att in set(filter(None, [
-            int(form_data['client_id']),
-            partner_client_id,   # None si no es Plan Pareja
-        ])):
+        attendance_client_ids = [int(form_data['client_id']), partner_client_id] + familiar_member_ids
+        for client_id_att in set(filter(None, attendance_client_ids)):
             if client_id_att == diario_id:
                 continue   # no registrar asistencia para el cliente DIARIO
             # Evitar duplicar si ya tiene asistencia hoy
@@ -172,7 +211,7 @@ class PaymentService:
                 ))
 
         db.session.commit()
-        return payment, partner_payment, None
+        return payment, partner_payment, None, familiar_payments
 
     # ------------------------------------------------------------------
     # Helpers de ingresos
@@ -230,30 +269,39 @@ class PaymentService:
     # ------------------------------------------------------------------
     @staticmethod
     def soft_delete_payment(payment):
-        """Marca el pago como eliminado y, si es Plan Pareja, también marca
-        como eliminado el pago "espejo" del otro cliente, para que no quede
-        contando como membresía activa de forma fantasma.
+        """Marca el pago como eliminado y, si es Plan Pareja o Plan Familiar,
+        también marca como eliminados todos los pagos "espejo" vinculados
+        (de los demás integrantes), para que no queden contando como
+        membresía activa de forma fantasma.
 
-        Retorna el pago espejo afectado (o None si no aplica), para que el
-        llamador pueda registrar el log de auditoría correspondiente.
+        Funciona tanto si `payment` es el pago principal (los espejos
+        apuntan a él vía `partner_client_id`) como si es uno de los
+        espejos (en cuyo caso hay que ubicar al principal y a los demás
+        espejos hermanos).
+
+        Retorna la lista de pagos vinculados afectados (vacía si no aplica),
+        para que el llamador pueda registrar el log de auditoría correspondiente.
         """
         payment.is_deleted = True
 
-        mirror = None
-        if payment.partner_client_id:
-            # Buscar el pago espejo: mismo membership_id, mismas fechas,
-            # y cuyo client_id sea el partner_client_id de este pago
-            # (o que apunte de vuelta a este pago como partner).
-            mirror = Payment.query.filter(
-                Payment.client_id == payment.partner_client_id,
-                Payment.partner_client_id == payment.client_id,
-                Payment.membership_id == payment.membership_id,
-                Payment.start_date == payment.start_date,
-                Payment.end_date == payment.end_date,
-                Payment.is_deleted == False,
-                Payment.id != payment.id,
-            ).first()
-            if mirror:
-                mirror.is_deleted = True
+        # El "ancla" es el client_id del pago principal (el que pagó):
+        # si este pago YA es un espejo, su partner_client_id apunta al principal.
+        anchor_id = payment.partner_client_id or payment.client_id
 
-        return mirror
+        linked = Payment.query.filter(
+            Payment.membership_id == payment.membership_id,
+            Payment.start_date    == payment.start_date,
+            Payment.end_date      == payment.end_date,
+            Payment.is_deleted    == False,
+            Payment.id            != payment.id,
+        ).filter(
+            db.or_(
+                Payment.client_id == anchor_id,          # el pago principal
+                Payment.partner_client_id == anchor_id,   # otros espejos hermanos
+            )
+        ).all()
+
+        for linked_payment in linked:
+            linked_payment.is_deleted = True
+
+        return linked

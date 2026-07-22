@@ -29,18 +29,18 @@ class DeleteRequestController:
         user_role = session.get('user_role')
         if user_role == 'admin':
             from services.payment_service import PaymentService
-            mirror = PaymentService.soft_delete_payment(payment)
+            mirrors = PaymentService.soft_delete_payment(payment)
             db.session.commit()
             AuditService.log(
                 'DELETE_DIRECTO', 'payments', payment.id,
                 f'${payment.amount:,.0f} — {payment.client.full_name if payment.client else "?"}',
                 'Eliminado por admin.'
             )
-            if mirror:
+            for mirror in mirrors:
                 AuditService.log(
                     'DELETE_DIRECTO', 'payments', mirror.id,
                     f'${mirror.amount:,.0f}',
-                    f'Eliminado (espejo Plan Pareja del pago #{payment.id}).'
+                    f'Eliminado (espejo vinculado al pago #{payment.id}).'
                 )
             flash('✅ Pago eliminado correctamente.', 'success')
             return redirect(url_for('payments.index'))
@@ -84,7 +84,7 @@ class DeleteRequestController:
 
         payment = dr.payment
         from services.payment_service import PaymentService
-        mirror = PaymentService.soft_delete_payment(payment)
+        mirrors = PaymentService.soft_delete_payment(payment)
         dr.status      = 'aprobada'
         dr.reviewed_by = session.get('user_id')
         dr.review_note = request.form.get('review_note', '').strip() or None
@@ -96,11 +96,11 @@ class DeleteRequestController:
             f'Solicitud #{dr.id} de {dr.requester.username if dr.requester else "?"}',
             f'Aprobada por admin. {dr.review_note or ""}'
         )
-        if mirror:
+        for mirror in mirrors:
             AuditService.log(
                 'DELETE_APROBADO', 'payments', mirror.id,
                 f'Solicitud #{dr.id}',
-                f'Eliminado (espejo Plan Pareja del pago #{payment.id})'
+                f'Eliminado (espejo vinculado al pago #{payment.id})'
             )
         flash(f'✅ Solicitud aprobada. Pago de ${payment.amount:,.0f} eliminado.', 'success')
         return redirect(url_for('delete_requests.list_pending'))

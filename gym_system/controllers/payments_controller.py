@@ -131,7 +131,7 @@ class PaymentsController:
         memberships = Membership.query.filter_by(is_active=True).order_by(Membership.name).all()
 
         if request.method == 'POST':
-            payment, partner_payment, error = PaymentService.register_payment(request.form)
+            payment, partner_payment, error, familiar_payments = PaymentService.register_payment(request.form)
             if error:
                 flash(error, 'danger')
             elif payment:
@@ -142,6 +142,11 @@ class PaymentsController:
                     AuditService.log('create', 'payments', partner_payment.id, None, 'Plan Pareja (espejo)')
                     _send_couple_email(partner_payment, payment.client)
                     flash('✅ Membresía activada también para el segundo cliente del Plan Pareja.', 'info')
+
+                if familiar_payments:
+                    for fam_payment in familiar_payments:
+                        AuditService.log('create', 'payments', fam_payment.id, None, 'Plan Familiar (espejo)')
+                    flash(f'✅ Membresía activada también para los {len(familiar_payments)} integrantes adicionales del Plan Familiar.', 'info')
 
                 flash('Pago registrado correctamente.', 'success')
                 return redirect(url_for('payments.receipt', payment_id=payment.id))
@@ -184,7 +189,7 @@ class PaymentsController:
 
         if request.method == 'POST':
             # Reutiliza exactamente la misma lógica que /payments/create
-            payment, partner_payment, error = PaymentService.register_payment(request.form)
+            payment, partner_payment, error, familiar_payments = PaymentService.register_payment(request.form)
             if error:
                 flash(error, 'danger')
                 # Volver al form de renovación con los datos precargados
@@ -214,6 +219,16 @@ class PaymentsController:
                     )
                     _send_couple_email(partner_payment, payment.client)
                     flash('✅ Membresía activada también para el segundo cliente del Plan Pareja.', 'info')
+                if familiar_payments:
+                    for fam_payment in familiar_payments:
+                        AuditService.log(
+                            'renew',
+                            'payments',
+                            fam_payment.id,
+                            f'{fam_payment.client.full_name} — {fam_payment.membership.name}',
+                            'Plan Familiar (espejo)'
+                        )
+                    flash(f'✅ Membresía activada también para los {len(familiar_payments)} integrantes adicionales del Plan Familiar.', 'info')
                 flash('Renovación registrada correctamente.', 'success')
                 return redirect(url_for('payments.receipt', payment_id=payment.id))
             else:
@@ -282,14 +297,14 @@ class PaymentsController:
     def delete(payment_id):
         payment = Payment.query.get_or_404(payment_id)
         client  = payment.client
-        mirror  = PaymentService.soft_delete_payment(payment)
+        mirrors = PaymentService.soft_delete_payment(payment)
         db.session.commit()
         AuditService.log('delete', 'payments', payment.id, str(payment.amount), 'eliminado')
-        if mirror:
+        for mirror in mirrors:
             AuditService.log(
                 'delete', 'payments', mirror.id,
                 str(mirror.amount),
-                f'eliminado (espejo Plan Pareja del pago #{payment.id})',
+                f'eliminado (espejo vinculado al pago #{payment.id})',
             )
 
         # ── WhatsApp al dueño: alerta de eliminación ───────────────

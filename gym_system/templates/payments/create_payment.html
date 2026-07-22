@@ -123,11 +123,11 @@
                 <div class="col-12" id="familiar_section" style="display:none">
                     <div class="card border-info">
                         <div class="card-header fw-semibold bg-info bg-opacity-10">
-                            <i class="fas fa-users me-2 text-info"></i>Plan Familiar — Integrantes (mínimo 3, máximo 6)
+                            <i class="fas fa-users me-2 text-info"></i>Plan Familiar — Integrantes (mínimo 3, máximo 8)
                         </div>
                         <div class="card-body">
                             <div class="row g-2" id="familiar_members">
-                                {% for i in range(2, 7) %}
+                                {% for i in range(2, 9) %}
                                 <div class="col-md-6 familiar-member-row" id="familiar_row_{{ i }}"
                                      {% if i > 3 %}style="display:none"{% endif %}>
                                     <label class="form-label small fw-semibold">Miembro {{ i }}
@@ -593,7 +593,7 @@ amountInput.addEventListener('input', function() { updateSplitSummary(); updateV
 updateCashSection();
 
 let familiarCount = 3;
-const MAX_FAMILIAR = 6;
+const MAX_FAMILIAR = 8;
 
 document.getElementById('add_familiar_btn').addEventListener('click', function() {
     if (familiarCount >= MAX_FAMILIAR) return;
@@ -616,6 +616,18 @@ function updateFamiliarUI() {
     document.getElementById('familiar_count_label').textContent = familiarCount + ' miembros';
     document.getElementById('add_familiar_btn').disabled = familiarCount >= MAX_FAMILIAR;
     document.getElementById('remove_familiar_btn').style.display = familiarCount > 3 ? '' : 'none';
+    updateFamiliarAmount();
+}
+
+// Plan Familiar: el monto total = precio por persona x cantidad de integrantes
+function updateFamiliarAmount() {
+    const opt = membershipSel.options[membershipSel.selectedIndex];
+    if (!opt || (opt.dataset.type || '') !== 'familiar') return;
+    const perPerson = parseFloat(opt.dataset.price) || 0;
+    amountInput.value = perPerson * familiarCount;
+    const amount1 = document.getElementById('amount_1');
+    if (amount1) amount1.value = amountInput.value;
+    updateSplitSummary();
 }
 
 function addDays(dateStr, days) {
@@ -639,11 +651,15 @@ function updateUI() {
     const duration = parseInt(opt.dataset.duration || '0');
 
     if (price) {
-        amountInput.value = price;
-        // Si solo hay un método visible, auto-llenar su monto
-        const amount1 = document.getElementById('amount_1');
-        if (amount1) amount1.value = price;
-        updateSplitSummary();
+        if (mtype === 'familiar') {
+            updateFamiliarAmount();
+        } else {
+            amountInput.value = price;
+            // Si solo hay un método visible, auto-llenar su monto
+            const amount1 = document.getElementById('amount_1');
+            if (amount1) amount1.value = price;
+            updateSplitSummary();
+        }
     }
 
     updateClientSection(mtype);

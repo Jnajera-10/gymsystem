@@ -48,4 +48,4 @@ class Membership(db.Model):
 
 # Plan Familiar: mínimo y máximo de integrantes (incluye al cliente principal)
 MIN_FAMILIAR_MEMBERS = 3
-MAX_FAMILIAR_MEMBERS = 6
+MAX_FAMILIAR_MEMBERS = 8

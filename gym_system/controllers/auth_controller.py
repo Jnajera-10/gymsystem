@@ -16,11 +16,18 @@ class AuthController:
                 session['user_username'] = user.username
                 session.permanent        = bool(remember)
                 # Redirigir a la animación de bienvenida antes del dashboard
-                return redirect(url_for('dashboard.index'))
+                return redirect(url_for('auth.welcome'))
             flash(error, 'danger')
         return render_template('auth/login.html')
 
-    
+    @staticmethod
+    def welcome():
+        """Pantalla de bienvenida (fondo negro, BODYFIT) que se muestra
+        unos segundos justo después de iniciar sesión y luego redirige
+        sola al dashboard."""
+        if not session.get('user_id'):
+            return redirect(url_for('auth.login'))
+        return render_template('auth/welcome.html')
 
     @staticmethod
     def logout():

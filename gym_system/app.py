@@ -82,6 +82,17 @@ def create_app():
         except Exception:
             pass
 
+        # ── Migración automática: columnas de congelar membresía ─────────
+        try:
+            from sqlalchemy import text as _text2
+            with db.engine.connect() as _conn2:
+                _conn2.execute(_text2("ALTER TABLE payments ADD COLUMN IF NOT EXISTS is_frozen BOOLEAN DEFAULT FALSE"))
+                _conn2.execute(_text2("ALTER TABLE payments ADD COLUMN IF NOT EXISTS frozen_at DATE"))
+                _conn2.execute(_text2("ALTER TABLE payments ADD COLUMN IF NOT EXISTS frozen_days_total INTEGER DEFAULT 0"))
+                _conn2.commit()
+        except Exception:
+            pass
+
         # ── Migración automática: payment_method VARCHAR(30) → VARCHAR(120) ──
         # Necesario porque los pagos divididos (ej. "efectivo:50000|nequi:30000")
         # pueden superar 30 caracteres. Se ejecuta en cada arranque; es

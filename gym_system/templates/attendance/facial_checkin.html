@@ -13,10 +13,16 @@
         <div class="card shadow-sm">
             <div class="card-body text-center">
                 <div class="position-relative d-inline-block">
-                    <video id="video" width="480" height="360" muted playsinline
-                           style="border-radius:10px;background:#111;"></video>
+                    <video id="video" width="420" height="420" muted playsinline
+                           style="border-radius:12px;background:#111;object-fit:cover;"></video>
+                    <!-- Guía ovalada: ayuda a la persona a centrar el rostro -->
+                    <div id="ovalGuide"
+                         style="position:absolute;left:50%;top:48%;width:58%;height:78%;
+                                transform:translate(-50%,-50%);border:4px solid rgba(255,255,255,.4);
+                                border-radius:50%;transition:border-color .25s, box-shadow .25s;
+                                pointer-events:none;"></div>
                     <div id="scanOverlay"
-                         style="position:absolute;inset:0;border:4px solid transparent;border-radius:10px;transition:border-color .2s;"></div>
+                         style="position:absolute;inset:0;border:4px solid transparent;border-radius:12px;transition:border-color .2s;"></div>
                 </div>
 
                 <div class="mt-2">
@@ -26,15 +32,15 @@
                 </div>
 
                 <div id="statusBox" class="mt-3 p-3 rounded"
-                     style="min-height:70px;background:#f8f9fa;">
-                    <span id="statusText" class="fw-semibold text-muted">
+                     style="min-height:76px;background:#f8f9fa;">
+                    <span id="statusText" class="fw-semibold text-muted fs-6">
                         <i class="fas fa-spinner fa-spin me-1"></i>Cargando modelos de reconocimiento…
                     </span>
                 </div>
 
                 <p class="text-muted small mt-2 mb-0">
                     <i class="fas fa-info-circle me-1"></i>
-                    Párate frente a la cámara. El check-in se registra automáticamente al reconocer tu rostro.
+                    Centra tu cara dentro del óvalo, con buena luz y mirando al frente. El check-in se registra solo.
                 </p>
             </div>
         </div>
@@ -48,15 +54,17 @@ document.addEventListener('DOMContentLoaded', () => {
     const video       = document.getElementById('video');
     const statusText  = document.getElementById('statusText');
     const scanOverlay = document.getElementById('scanOverlay');
+    const ovalGuide    = document.getElementById('ovalGuide');
 
     let stream        = null;
     let scanning      = false;   // evita solicitudes solapadas
     let cooldownUntil = 0;       // evita registrar el mismo rostro repetidamente
     let currentFacing = 'environment'; // cámara trasera por defecto (celular montado en la entrada)
 
-    function setStatus(html, color) {
+    function setStatus(html, color, ovalColor) {
         statusText.innerHTML = html;
         scanOverlay.style.borderColor = color || 'transparent';
+        ovalGuide.style.borderColor = ovalColor || 'rgba(255,255,255,.4)';
     }
 
     async function init() {
@@ -92,11 +100,11 @@ document.addEventListener('DOMContentLoaded', () => {
             try {
                 const embedding = await getFaceEmbedding(video);
                 if (!embedding) {
-                    setStatus('<i class="fas fa-search me-1"></i>Buscando rostro…', null);
+                    setStatus('<i class="fas fa-search me-1"></i>Buscando rostro… centra tu cara en el óvalo.', null, 'rgba(255,255,255,.4)');
                     scanning = false;
                     return;
                 }
-                setStatus('<i class="fas fa-spinner fa-spin me-1"></i>Verificando…', '#0d6efd');
+                setStatus('<i class="fas fa-spinner fa-spin me-1"></i>Verificando…', '#0d6efd', 'rgba(13,110,253,.85)');
                 const res = await fetch("{{ url_for('face.verify_face') }}", {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
@@ -106,7 +114,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 handleResult(data);
             } catch (err) {
                 console.error(err);
-                setStatus('<i class="fas fa-exclamation-triangle me-1"></i>Error de conexión.', '#dc3545');
+                setStatus('<i class="fas fa-exclamation-triangle me-1"></i>Error de conexión.', '#dc3545', 'rgba(220,53,69,.7)');
             }
             scanning = false;
         }, 1200);
@@ -114,15 +122,15 @@ document.addEventListener('DOMContentLoaded', () => {
 
     function handleResult(data) {
         if (data.status === 'checked_in') {
-            setStatus(`<i class="fas fa-check-circle me-1 text-success"></i>${data.message}`, '#198754');
+            setStatus(`<i class="fas fa-check-circle me-1 text-success"></i>${data.message}`, '#198754', 'rgba(25,135,84,.9)');
             cooldownUntil = Date.now() + 8000; // 8s antes de volver a intentar
         } else if (data.status === 'no_membership') {
-            setStatus(`<i class="fas fa-exclamation-triangle me-1 text-warning"></i>${data.message}`, '#ffc107');
+            setStatus(`<i class="fas fa-exclamation-triangle me-1 text-warning"></i>${data.message}`, '#ffc107', 'rgba(255,193,7,.9)');
             cooldownUntil = Date.now() + 6000;
         } else if (data.status === 'not_found') {
-            setStatus('<i class="fas fa-question-circle me-1 text-muted"></i>Rostro no reconocido.', '#6c757d');
+            setStatus('<i class="fas fa-question-circle me-1 text-muted"></i>Rostro no reconocido. Intenta acercarte más o mejora la luz.', '#6c757d', 'rgba(220,53,69,.7)');
         } else {
-            setStatus(`<i class="fas fa-exclamation-triangle me-1"></i>${data.message || 'Error'}`, '#dc3545');
+            setStatus(`<i class="fas fa-exclamation-triangle me-1"></i>${data.message || 'Error'}`, '#dc3545', 'rgba(220,53,69,.7)');
         }
     }
 

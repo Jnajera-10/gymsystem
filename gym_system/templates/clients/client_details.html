@@ -114,14 +114,26 @@
                 {% if active_payment %}
                     {% set days_left = (active_payment.end_date - today).days %}
                     <p class="mb-1"><strong>Plan:</strong> {{ active_payment.membership.name }}</p>
-                    <p class="mb-1"><strong>Vence:</strong>
-                        <span class="fw-bold {{ 'text-danger' if days_left <= 3 else 'text-success' }}">
-                            {{ active_payment.end_date.strftime('%d/%m/%Y') }}
-                        </span>
-                        <span class="badge {{ 'bg-danger' if days_left <= 0 else 'bg-warning text-dark' if days_left <= 3 else 'bg-success' }} ms-1">
-                            {{ 'Vencida' if days_left < 0 else 'Vence hoy' if days_left == 0 else days_left ~ ' días' }}
-                        </span>
-                    </p>
+                    {% if active_payment.is_frozen %}
+                        <p class="mb-1">
+                            <span class="badge bg-info text-dark">
+                                <i class="fas fa-snowflake me-1"></i>Congelada desde {{ active_payment.frozen_at.strftime('%d/%m/%Y') }}
+                            </span>
+                        </p>
+                        <p class="text-muted small mb-2">
+                            No se están descontando días mientras esté congelada.
+                            Vencimiento actual (se recorrerá al descongelar): {{ active_payment.end_date.strftime('%d/%m/%Y') }}.
+                        </p>
+                    {% else %}
+                        <p class="mb-1"><strong>Vence:</strong>
+                            <span class="fw-bold {{ 'text-danger' if days_left <= 3 else 'text-success' }}">
+                                {{ active_payment.end_date.strftime('%d/%m/%Y') }}
+                            </span>
+                            <span class="badge {{ 'bg-danger' if days_left <= 0 else 'bg-warning text-dark' if days_left <= 3 else 'bg-success' }} ms-1">
+                                {{ 'Vencida' if days_left < 0 else 'Vence hoy' if days_left == 0 else days_left ~ ' días' }}
+                            </span>
+                        </p>
+                    {% endif %}
                     <p class="mb-2"><strong>Pagado:</strong> ${{ '{:,.0f}'.format(active_payment.amount) }} — {{ active_payment.payment_method }}</p>
                     {# ── Modificar días ── #}
                     <form method="POST" action="{{ url_for('payments.extend', payment_id=active_payment.id) }}"
@@ -135,6 +147,25 @@
                         </button>
                         <span class="text-muted small">positivo = agregar, negativo = quitar</span>
                     </form>
+
+                    {# ── Congelar / Descongelar (ej. lesión o accidente) ── #}
+                    <div class="mt-2">
+                        {% if active_payment.is_frozen %}
+                        <form method="POST" action="{{ url_for('payments.unfreeze', payment_id=active_payment.id) }}" class="d-inline"
+                              onsubmit="return confirm('¿Descongelar la membresía de {{ client.full_name }}? Se sumarán a la fecha de vencimiento los días que estuvo congelada.')">
+                            <button type="submit" class="btn btn-sm btn-outline-danger">
+                                <i class="fas fa-fire me-1"></i>Descongelar membresía
+                            </button>
+                        </form>
+                        {% else %}
+                        <form method="POST" action="{{ url_for('payments.freeze', payment_id=active_payment.id) }}" class="d-inline"
+                              onsubmit="return confirm('¿Congelar la membresía de {{ client.full_name }}? (ej. lesión o accidente). Mientras esté congelada no se le descontarán días.')">
+                            <button type="submit" class="btn btn-sm btn-outline-info">
+                                <i class="fas fa-snowflake me-1"></i>Congelar membresía
+                            </button>
+                        </form>
+                        {% endif %}
+                    </div>
                 {% elif last_payment %}
                     <p class="text-muted mb-1">
                         <i class="fas fa-exclamation-circle me-1 text-warning"></i>Membresía vencida.
@@ -212,7 +243,7 @@
     </div>
 </div>
 
-<!-- ── Modal: registrar rostro ──────────────────────────────────────── -->
+<!-- ── Modal: registrar rostro (captura guiada de varias poses) ───────── -->
 <div class="modal fade" id="faceModal" tabindex="-1">
     <div class="modal-dialog modal-dialog-centered">
         <div class="modal-content">
@@ -221,8 +252,20 @@
                 <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
             </div>
             <div class="modal-body text-center">
-                <video id="faceVideo" width="360" height="270" muted playsinline
-                       style="border-radius:8px;background:#111;"></video>
+
+                <!-- Indicador de pasos -->
+                <div class="d-flex justify-content-center align-items-center gap-2 mb-3" id="faceStepDots">
+                    <!-- generado por JS -->
+                </div>
+
+                <div class="position-relative d-inline-block">
+                    <video id="faceVideo" width="320" height="320" muted playsinline
+                           style="border-radius:10px;background:#111;object-fit:cover;"></video>
+                    <div id="faceOvalGuide"
+                         style="position:absolute;left:50%;top:50%;width:62%;height:80%;
+                                transform:translate(-50%,-50%);border:3px solid rgba(255,255,255,.35);
+                                border-radius:50%;transition:border-color .2s;pointer-events:none;"></div>
+                </div>
 
                 <div class="mt-2">
                     <button type="button" class="btn btn-sm btn-outline-secondary" id="btnSwitchFaceCam">
@@ -230,7 +273,14 @@
                     </button>
                 </div>
 
-                <div class="form-check mt-3 text-start">
+                <h6 class="fw-bold mt-3 mb-1" id="facePoseTitle">Mira directo a la cámara</h6>
+                <p class="text-muted small mb-2" id="facePoseSubtitle">Foto 1 de 3 — asegúrate de tener buena luz</p>
+
+                <div class="progress mb-3" style="height:6px;">
+                    <div class="progress-bar bg-info" id="faceProgressBar" style="width:0%"></div>
+                </div>
+
+                <div class="form-check mt-1 text-start">
                     <input class="form-check-input" type="checkbox" id="consentCheck"
                            {% if client.biometric_consent %}checked disabled{% endif %}>
                     <label class="form-check-label small" for="consentCheck">
@@ -244,9 +294,12 @@
                 </div>
             </div>
             <div class="modal-footer">
+                <button type="button" class="btn btn-outline-secondary" id="btnRetakeFace" style="display:none;">
+                    <i class="fas fa-redo me-1"></i>Repetir esta foto
+                </button>
                 <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancelar</button>
                 <button type="button" class="btn btn-primary" id="btnCaptureFace" disabled>
-                    <i class="fas fa-camera me-1"></i>Capturar y guardar
+                    <i class="fas fa-camera me-1"></i>Capturar foto 1/3
                 </button>
             </div>
         </div>
@@ -261,10 +314,65 @@ let faceStream = null;
 let modelsReady = false;
 let faceCurrentFacing = 'user'; // frontal por defecto: normalmente el empleado le toma la foto al cliente de frente
 
+// Poses guiadas: mejora mucho el reconocimiento porque el check-in ya no
+// depende de que el cliente quede exactamente igual que en una sola foto.
+const FACE_POSES = [
+    { title: 'Mira directo a la cámara',           subtitle: 'Foto 1 de 3 — asegúrate de tener buena luz' },
+    { title: 'Gira la cabeza un poco a la IZQUIERDA', subtitle: 'Foto 2 de 3 — un giro suave, sin exagerar' },
+    { title: 'Gira la cabeza un poco a la DERECHA',   subtitle: 'Foto 3 de 3 — un giro suave, sin exagerar' },
+];
+let faceCapturedEmbeddings = [];
+let faceLiveDetectTimer = null;
+
+function renderFaceStepDots() {
+    const dots = document.getElementById('faceStepDots');
+    dots.innerHTML = FACE_POSES.map((_, i) => {
+        const done = i < faceCapturedEmbeddings.length;
+        const current = i === faceCapturedEmbeddings.length;
+        const bg = done ? '#198754' : (current ? '#0d6efd' : '#dee2e6');
+        const icon = done ? '<i class="fas fa-check" style="font-size:10px;"></i>' : (i + 1);
+        return `<div style="width:26px;height:26px;border-radius:50%;background:${bg};color:#fff;
+                     display:flex;align-items:center;justify-content:center;font-size:12px;font-weight:600;">${icon}</div>`;
+    }).join('<div style="width:20px;height:2px;background:#dee2e6;margin-top:12px;"></div>');
+}
+
+function renderFacePoseUI() {
+    const step = faceCapturedEmbeddings.length;
+    renderFaceStepDots();
+    document.getElementById('faceProgressBar').style.width = Math.round((step / FACE_POSES.length) * 100) + '%';
+    document.getElementById('btnRetakeFace').style.display = step > 0 ? 'inline-block' : 'none';
+
+    if (step >= FACE_POSES.length) {
+        document.getElementById('facePoseTitle').textContent = '¡Listo! Todas las fotos capturadas';
+        document.getElementById('facePoseSubtitle').textContent = 'Pulsa "Guardar rostro" para terminar';
+        const btn = document.getElementById('btnCaptureFace');
+        btn.innerHTML = '<i class="fas fa-save me-1"></i>Guardar rostro';
+        return;
+    }
+    const pose = FACE_POSES[step];
+    document.getElementById('facePoseTitle').textContent = pose.title;
+    document.getElementById('facePoseSubtitle').textContent = pose.subtitle;
+    document.getElementById('btnCaptureFace').innerHTML =
+        `<i class="fas fa-camera me-1"></i>Capturar foto ${step + 1}/${FACE_POSES.length}`;
+}
+
+function faceLiveDetectLoop() {
+    const video = document.getElementById('faceVideo');
+    const guide = document.getElementById('faceOvalGuide');
+    clearInterval(faceLiveDetectTimer);
+    faceLiveDetectTimer = setInterval(async () => {
+        if (!modelsReady || faceCapturedEmbeddings.length >= FACE_POSES.length) return;
+        const emb = await getFaceEmbedding(video);
+        guide.style.borderColor = emb ? 'rgba(25,135,84,.85)' : 'rgba(220,53,69,.6)';
+    }, 700);
+}
+
 async function openFaceModal() {
+    faceCapturedEmbeddings = [];
     const modalEl = document.getElementById('faceModal');
     const modal = bootstrap.Modal.getOrCreateInstance(modalEl);
     modal.show();
+    renderFacePoseUI();
 
     const video      = document.getElementById('faceVideo');
     const statusEl   = document.getElementById('faceStatus');
@@ -279,8 +387,9 @@ async function openFaceModal() {
         }
         statusEl.innerHTML = '<i class="fas fa-video me-1"></i>Iniciando cámara…';
         faceStream = await startCamera(video, faceCurrentFacing);
-        statusEl.innerHTML = '<i class="fas fa-info-circle me-1"></i>Ubica el rostro dentro del cuadro y pulsa "Capturar".';
+        statusEl.innerHTML = '<i class="fas fa-info-circle me-1"></i>Ubica el rostro dentro del óvalo. Se pone verde cuando está listo.';
         btnCapture.disabled = false;
+        faceLiveDetectLoop();
     } catch (err) {
         console.error(err);
         statusEl.innerHTML = '<i class="fas fa-exclamation-triangle text-danger me-1"></i>No se pudo acceder a la cámara.';
@@ -295,7 +404,7 @@ document.getElementById('btnSwitchFaceCam').addEventListener('click', async () =
     statusEl.innerHTML = '<i class="fas fa-video me-1"></i>Cambiando de cámara…';
     try {
         faceStream = await startCamera(video, faceCurrentFacing);
-        statusEl.innerHTML = '<i class="fas fa-info-circle me-1"></i>Ubica el rostro dentro del cuadro y pulsa "Capturar".';
+        statusEl.innerHTML = '<i class="fas fa-info-circle me-1"></i>Ubica el rostro dentro del óvalo. Se pone verde cuando está listo.';
     } catch (err) {
         console.error(err);
         statusEl.innerHTML = '<i class="fas fa-exclamation-triangle text-danger me-1"></i>Esta cámara no está disponible en tu dispositivo.';
@@ -304,6 +413,14 @@ document.getElementById('btnSwitchFaceCam').addEventListener('click', async () =
 
 document.getElementById('faceModal').addEventListener('hidden.bs.modal', () => {
     stopCamera(faceStream);
+    clearInterval(faceLiveDetectTimer);
+});
+
+document.getElementById('btnRetakeFace').addEventListener('click', () => {
+    if (faceCapturedEmbeddings.length > 0) faceCapturedEmbeddings.pop();
+    renderFacePoseUI();
+    document.getElementById('faceStatus').innerHTML =
+        '<i class="fas fa-info-circle me-1"></i>Ubica el rostro dentro del óvalo. Se pone verde cuando está listo.';
 });
 
 document.getElementById('btnCaptureFace').addEventListener('click', async () => {
@@ -317,35 +434,48 @@ document.getElementById('btnCaptureFace').addEventListener('click', async () => 
         return;
     }
 
+    // Ya se capturaron las 3 poses -> este clic guarda todo en el servidor
+    if (faceCapturedEmbeddings.length >= FACE_POSES.length) {
+        btnCapture.disabled = true;
+        statusEl.innerHTML = '<i class="fas fa-spinner fa-spin me-1"></i>Guardando rostro…';
+        try {
+            const res = await fetch(`/api/face/register/${CLIENT_ID}`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ embeddings: faceCapturedEmbeddings, consent }),
+            });
+            const data = await res.json();
+            if (data.ok) {
+                statusEl.innerHTML = `<i class="fas fa-check-circle text-success me-1"></i>${data.message}`;
+                setTimeout(() => window.location.reload(), 900);
+            } else {
+                statusEl.innerHTML = `<i class="fas fa-exclamation-triangle text-danger me-1"></i>${data.error}`;
+                btnCapture.disabled = false;
+            }
+        } catch (err) {
+            console.error(err);
+            statusEl.innerHTML = '<i class="fas fa-exclamation-triangle text-danger me-1"></i>Error de conexión.';
+            btnCapture.disabled = false;
+        }
+        return;
+    }
+
+    // Captura de una pose intermedia
     btnCapture.disabled = true;
     statusEl.innerHTML = '<i class="fas fa-spinner fa-spin me-1"></i>Analizando rostro…';
 
     const embedding = await getFaceEmbedding(video);
     if (!embedding) {
-        statusEl.innerHTML = '<i class="fas fa-exclamation-triangle text-danger me-1"></i>No se detectó ningún rostro. Intenta de nuevo.';
+        statusEl.innerHTML = '<i class="fas fa-exclamation-triangle text-danger me-1"></i>No se detectó ningún rostro. Ubícate dentro del óvalo e intenta de nuevo.';
         btnCapture.disabled = false;
         return;
     }
 
-    try {
-        const res = await fetch(`/api/face/register/${CLIENT_ID}`, {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ embedding, consent }),
-        });
-        const data = await res.json();
-        if (data.ok) {
-            statusEl.innerHTML = `<i class="fas fa-check-circle text-success me-1"></i>${data.message}`;
-            setTimeout(() => window.location.reload(), 900);
-        } else {
-            statusEl.innerHTML = `<i class="fas fa-exclamation-triangle text-danger me-1"></i>${data.error}`;
-            btnCapture.disabled = false;
-        }
-    } catch (err) {
-        console.error(err);
-        statusEl.innerHTML = '<i class="fas fa-exclamation-triangle text-danger me-1"></i>Error de conexión.';
-        btnCapture.disabled = false;
-    }
+    faceCapturedEmbeddings.push(embedding);
+    renderFacePoseUI();
+    statusEl.innerHTML = '<i class="fas fa-check-circle text-success me-1"></i>Foto capturada. ' +
+        (faceCapturedEmbeddings.length < FACE_POSES.length ? 'Sigue con la siguiente pose.' : 'Ya puedes guardar.');
+    btnCapture.disabled = false;
 });
 
 const btnClearFace = document.getElementById('btnClearFace');

@@ -129,6 +129,7 @@ class DashboardController:
                 Payment.end_date >= today,
                 Payment.end_date <= warn_limit,
                 Payment.is_deleted == False,
+                Payment.is_frozen == False,
                 MembershipModel.membership_type != 'diario',
             )
             .order_by(Payment.end_date.asc())
@@ -138,7 +139,7 @@ class DashboardController:
         # ── Alertas: ya vencidas — excluye plan Diario y clientes con membresía activa ──
         # Primero obtenemos los client_ids que tienen al menos 1 pago activo hoy
         active_client_ids = db.session.query(Payment.client_id).filter(
-            Payment.end_date >= today,
+            db.or_(Payment.end_date >= today, Payment.is_frozen == True),
             Payment.is_deleted == False,
         ).distinct().subquery()
 
@@ -148,6 +149,7 @@ class DashboardController:
             .filter(
                 Payment.end_date < today,
                 Payment.is_deleted == False,
+                Payment.is_frozen == False,
                 MembershipModel.membership_type != 'diario',
                 # Excluir clientes que ya tienen otra membresía activa
                 Payment.client_id.notin_(active_client_ids),

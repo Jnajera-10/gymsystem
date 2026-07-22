@@ -364,6 +364,32 @@ class PaymentsController:
         flash(f'✅ Se {accion} días a {payment.client.full_name}. Nuevo vencimiento: {payment.end_date.strftime("%d/%m/%Y")}.', 'success')
         return redirect(url_for('clients.detail', client_id=payment.client_id))
 
+    @staticmethod
+    def freeze(payment_id):
+        """Congela una membresía (ej. lesión/accidente): no se descuentan días mientras esté congelada."""
+        payment = Payment.query.get_or_404(payment_id)
+        ok, message = PaymentService.freeze_payment(payment)
+        if ok:
+            db.session.commit()
+            AuditService.log('update', 'payments', payment.id, 'activa', f'congelada desde {payment.frozen_at}')
+            flash(f'❄️ {message} Mientras esté congelada, {payment.client.full_name} no perderá días de su plan.', 'info')
+        else:
+            flash(message, 'warning')
+        return redirect(url_for('clients.detail', client_id=payment.client_id))
+
+    @staticmethod
+    def unfreeze(payment_id):
+        """Descongela una membresía y suma los días congelados a la fecha de vencimiento."""
+        payment = Payment.query.get_or_404(payment_id)
+        ok, message = PaymentService.unfreeze_payment(payment)
+        if ok:
+            db.session.commit()
+            AuditService.log('update', 'payments', payment.id, 'congelada', f'descongelada → end_date {payment.end_date}')
+            flash(f'🔥 {message}', 'success')
+        else:
+            flash(message, 'warning')
+        return redirect(url_for('clients.detail', client_id=payment.client_id))
+
 
 # ──────────────────────────────────────────────────────────────────────
 # Helpers de email

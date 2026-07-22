@@ -305,3 +305,47 @@ class PaymentService:
             linked_payment.is_deleted = True
 
         return linked
+
+    # ------------------------------------------------------------------
+    # Congelar / descongelar membresía (ej. lesión o accidente)
+    # ------------------------------------------------------------------
+    @staticmethod
+    def freeze_payment(payment):
+        """
+        Congela la membresía: mientras esté congelada, el sistema no
+        descuenta días. No modifica end_date todavía — eso se hace al
+        descongelar, sumando exactamente los días que estuvo congelada.
+        Retorna (ok, mensaje).
+        """
+        if payment.is_deleted:
+            return False, 'No puedes congelar un pago eliminado.'
+        if payment.is_frozen:
+            return False, 'Esta membresía ya está congelada.'
+
+        today = datetime.now(BOGOTA).date()
+        payment.is_frozen = True
+        payment.frozen_at = today
+        return True, f'Membresía congelada desde el {today.strftime("%d/%m/%Y")}.'
+
+    @staticmethod
+    def unfreeze_payment(payment):
+        """
+        Descongela la membresía: calcula cuántos días estuvo congelada
+        (desde frozen_at hasta hoy) y los suma a end_date, para que el
+        cliente no pierda ni un día de su plan. Retorna (ok, mensaje).
+        """
+        if not payment.is_frozen:
+            return False, 'Esta membresía no está congelada.'
+
+        today = datetime.now(BOGOTA).date()
+        days_frozen = max((today - payment.frozen_at).days, 0)
+
+        payment.end_date = payment.end_date + timedelta(days=days_frozen)
+        payment.frozen_days_total = (payment.frozen_days_total or 0) + days_frozen
+        payment.is_frozen = False
+        payment.frozen_at = None
+
+        return True, (
+            f'Membresía descongelada. Se sumaron {days_frozen} día(s) congelado(s) — '
+            f'nueva fecha de vencimiento: {payment.end_date.strftime("%d/%m/%Y")}.'
+        )

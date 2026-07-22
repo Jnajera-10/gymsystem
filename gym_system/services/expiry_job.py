@@ -51,6 +51,7 @@ def run_expiry_notifications(app):
             payments = Payment.query.filter(
                 Payment.end_date == target_date,
                 Payment.is_deleted == False,
+                Payment.is_frozen == False,
             ).all()
             for p in payments:
                 if p.client and p.client.email and p.client.is_active:
@@ -62,6 +63,7 @@ def run_expiry_notifications(app):
         expired = Payment.query.filter(
             Payment.end_date == yesterday,
             Payment.is_deleted == False,
+            Payment.is_frozen == False,
         ).all()
         for p in expired:
             if p.client and p.client.email and p.client.is_active:

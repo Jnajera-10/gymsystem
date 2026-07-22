@@ -4,6 +4,7 @@ import pytz
 
 from database.models.client import Client
 from database.models.payment import Payment
+from database.db import db
 from services.face_service import FaceService
 from services.attendance_service import AttendanceService
 from utils.security import login_required
@@ -19,7 +20,7 @@ def _has_active_membership(client_id):
         Payment.client_id == client_id,
         Payment.is_deleted == False,
         Payment.start_date <= today,
-        Payment.end_date >= today,
+        db.or_(Payment.end_date >= today, Payment.is_frozen == True),
     ).first() is not None
 
 
@@ -34,15 +35,21 @@ def facial_checkin_page():
 @login_required
 def register_face(client_id):
     """
-    Recibe el embedding (vector de ~128 floats) generado por face-api.js
-    en el navegador y lo asocia al cliente. Requiere consentimiento previo.
+    Recibe una o varias poses (cada una un vector de ~128 floats generado
+    por face-api.js en el navegador) y las asocia al cliente. Guardar
+    varias poses (frontal, izquierda, derecha) hace que el reconocimiento
+    sea mucho más confiable en el check-in. Requiere consentimiento previo.
     """
     data = request.get_json(silent=True) or {}
-    embedding = data.get('embedding')
+    embeddings = data.get('embeddings')
+    if embeddings is None:
+        # Compatibilidad con el formato viejo (una sola pose)
+        single = data.get('embedding')
+        embeddings = [single] if single else None
     consent = data.get('consent', False)
 
-    if not embedding or not isinstance(embedding, list):
-        return jsonify({'ok': False, 'error': 'Embedding inválido.'}), 400
+    if not embeddings or not isinstance(embeddings, list) or not all(isinstance(e, list) for e in embeddings):
+        return jsonify({'ok': False, 'error': 'Debes capturar al menos una pose válida.'}), 400
 
     client = Client.query.get(client_id)
     if not client:
@@ -57,8 +64,11 @@ def register_face(client_id):
     if consent:
         FaceService.set_consent(client_id, True)
 
-    FaceService.save_embedding(client_id, embedding)
-    return jsonify({'ok': True, 'message': f'Rostro registrado para {client.full_name}.'})
+    FaceService.save_embedding(client_id, embeddings)
+    return jsonify({
+        'ok': True,
+        'message': f'Rostro registrado para {client.full_name} ({len(embeddings)} pose(s)).'
+    })
 
 
 @face_bp.route('/api/face/clear/<int:client_id>', methods=['POST'])

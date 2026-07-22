@@ -38,6 +38,13 @@ class Payment(db.Model):
     # Plan pareja: segundo cliente (opcional, solo para couple plan)
     partner_client_id = db.Column(db.Integer, db.ForeignKey('clients.id'), nullable=True)
 
+    # ── Congelar membresía (ej. lesión/accidente) ──────────────────────
+    # Mientras está congelada no se "pierden" días: al descongelar se
+    # suman a end_date los días que estuvo congelada.
+    is_frozen         = db.Column(db.Boolean, default=False)
+    frozen_at         = db.Column(db.Date)      # fecha en que se congeló
+    frozen_days_total = db.Column(db.Integer, default=0)  # histórico acumulado
+
     membership = db.relationship('Membership', backref='payments')
     partner    = db.relationship(
         'Client',

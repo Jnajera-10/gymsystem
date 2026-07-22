@@ -9,6 +9,7 @@ MEMBERSHIP_TYPES = [
     ('diario',        'Diario',        1),
     ('mensual',       'Mensual',       30),
     ('pareja',        'Plan Pareja',   30),   # 2 personas obligatorio
+    ('familiar',      'Plan Familiar', 30),   # 3 a 8 personas
     ('trimestral',    'Trimestral',    90),
     ('semestral',     'Semestral',     180),
     ('anual',         'Anual',         365),

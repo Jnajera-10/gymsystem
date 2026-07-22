@@ -20,8 +20,13 @@ def create():
     if request.method == 'POST':
         mtype = request.form.get('membership_type', 'mensual')
 
-        # max_members: pareja → 2, resto → 1
-        max_members = 2 if mtype == 'pareja' else 1
+        # max_members: pareja → 2, familiar → 8, resto → 1
+        if mtype == 'pareja':
+            max_members = 2
+        elif mtype == 'familiar':
+            max_members = 8
+        else:
+            max_members = 1
 
         # requires_student: solo para plan estudiantil
         requires_student = (mtype == 'estudiantil')
@@ -56,7 +61,12 @@ def edit(mid):
         m.duration_days   = int(request.form['duration_days'])
         m.price           = float(request.form['price'])
         m.membership_type = mtype
-        m.max_members     = 2 if mtype == 'pareja' else 1
+        if mtype == 'pareja':
+            m.max_members = 2
+        elif mtype == 'familiar':
+            m.max_members = 8
+        else:
+            m.max_members = 1
         m.requires_student = (mtype == 'estudiantil')
         db.session.commit()
         flash('Membresía actualizada.', 'success')

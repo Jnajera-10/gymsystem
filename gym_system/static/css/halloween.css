@@ -164,7 +164,102 @@ html.hw .bg-floor {
         linear-gradient(180deg, #07030c 0%, #12071d 55%, #1a0b2b 100%) !important;
 }
 html.hw .login-card { box-shadow: 0 0 46px rgba(255, 122, 26, .28), 0 10px 40px rgba(0, 0, 0, .6) !important; }
-html.hw .brand-header::before { content: "🎃"; display: block; font-size: 2.4rem; margin-bottom: 4px; animation: hw-float 3.6s ease-in-out infinite; }
+
+/* ── Letrero de NEÓN naranja: BODY-FIT parpadea y de vez en cuando lo atraviesa un relámpago ── */
+html.hw .brand-title {
+    color: #ffe6c8;
+    text-shadow:
+        0 0 3px  #fff4e4,
+        0 0 9px  #ffb066,
+        0 0 20px #ff7a1a,
+        0 0 40px #ff5a2b,
+        0 0 72px rgba(255, 90, 43, .65);
+    animation: hw-neon 6.5s linear infinite, hw-surge 12s linear infinite;
+}
+html.hw .brand-subtitle { color: rgba(255, 180, 120, .55); }
+
+/* Relámpago: destello suave + rayo tenue (comparte reloj con el letrero) */
+.hw-lightning {
+    position: absolute; inset: 0;
+    opacity: 0;
+    background:
+        radial-gradient(ellipse 55% 45% at 50% 18%, rgba(255, 190, 120, .38), transparent 70%),
+        radial-gradient(ellipse 100% 70% at 50% 0%,  rgba(255, 140, 60, .16), transparent 80%);
+    animation: hw-lightning 12s linear infinite;
+}
+.hw-lightning svg {
+    position: absolute; top: 0; left: 50%;
+    width: 70px; height: 190px;
+    margin-left: -250px;
+    filter: drop-shadow(0 0 8px rgba(255, 150, 70, .9));
+    opacity: .6;
+}
+
+/* Logo con detalle de temporada: sombrero de bruja + brillo naranja */
+.hw-hat { display: none; }
+html.hw .hw-logo, html.hw .gym-logo-wrap { position: relative; }
+html.hw .hw-logo { display: inline-block; }
+html.hw .hw-hat {
+    display: block;
+    position: absolute;
+    width: 54px;
+    top: -27px; right: -14px;
+    transform: rotate(16deg);
+    transform-origin: 50% 90%;
+    filter: drop-shadow(0 0 6px rgba(255, 122, 26, .75));
+    pointer-events: none;
+    z-index: 2;
+}
+html.hw .hw-logo img {
+    border-color: var(--hw-orange) !important;
+    animation: hw-logo-glow 3.2s ease-in-out infinite;
+}
+html.hw .gym-logo-wrap {
+    border-color: rgba(255, 122, 26, .7);
+    animation: hw-logo-glow 3.2s ease-in-out infinite;
+}
+
+/* ══════════════ BRASAS FLOTANTES ══════════════ */
+.hw-ember {
+    position: absolute;
+    left: var(--x); bottom: -12px;
+    width: var(--s); height: var(--s);
+    border-radius: 50%;
+    background: radial-gradient(circle, #fff3d6 0%, #ffb347 38%, #ff7a1a 68%, transparent 74%);
+    box-shadow: 0 0 6px 1px rgba(255, 122, 26, .75);
+    opacity: 0;
+    animation: hw-rise var(--d) linear var(--delay) infinite;
+}
+
+/* ══════════════ DASHBOARD: brillo naranja al pasar el mouse ══════════════ */
+html.hw .hw-dashboard .card {
+    transition: box-shadow .25s ease, transform .2s ease, border-color .25s ease;
+}
+html.hw .hw-dashboard .card:hover {
+    box-shadow:
+        0 0 0 1px rgba(255, 122, 26, .6),
+        0 0 22px rgba(255, 122, 26, .45),
+        0 8px 22px rgba(0, 0, 0, .10);
+}
+html.hw .hw-dashboard .card.text-center:hover { transform: translateY(-3px); }   /* solo las 4 tarjetas de resumen */
+html.hw .hw-dashboard .card.text-center:active {                                 /* "clic": se hunde y destella */
+    transform: translateY(0) scale(.98);
+    box-shadow: 0 0 0 2px var(--hw-orange), 0 0 34px rgba(255, 122, 26, .75);
+}
+
+/* ══════════════ LLUVIA DE CALABAZAS Y DULCES ══════════════ */
+.hw-rain {
+    position: fixed; inset: 0;
+    overflow: hidden;
+    pointer-events: none;
+    z-index: 2000;
+}
+.hw-treat {
+    position: absolute; top: -48px;
+    line-height: 1;
+    filter: drop-shadow(0 2px 4px rgba(0, 0, 0, .35));
+    animation: hw-fall ease-in forwards;
+}
 
 /* ══════════════ ANIMACIONES ══════════════ */
 @keyframes hw-fly    { from { transform: translateX(-90px); }  to { transform: translateX(calc(100vw + 90px)); } }
@@ -173,20 +268,61 @@ html.hw .brand-header::before { content: "🎃"; display: block; font-size: 2.4r
 @keyframes hw-float  { 0%,100% { transform: translateY(0); }   50% { transform: translateY(-14px); } }
 @keyframes hw-drop   { 0%,100% { height: var(--len, 80px); }   50% { height: calc(var(--len, 80px) + 14px); } }
 @keyframes hw-drift  { from { transform: translateX(0); }      to { transform: translateX(-50%); } }
+@keyframes hw-neon {                                   /* parpadeo de tubo de neón */
+    0%, 17%, 22%, 25%, 53%, 57%, 100% { opacity: 1; }
+    19%, 24%, 55% {
+        opacity: .5;
+        color: #ffb877;
+        text-shadow: 0 0 2px #ffd0a0, 0 0 7px #ff7a1a;
+    }
+}
+@keyframes hw-surge {                                  /* el letrero "se carga" con el relámpago */
+    0%, 91%, 100% { filter: brightness(1); }
+    92%           { filter: brightness(1.7); }
+    93%           { filter: brightness(1.05); }
+    94%           { filter: brightness(1.9); }
+    97%           { filter: brightness(1.1); }
+}
+@keyframes hw-lightning {                              /* ~cada 12 s, doble destello suave */
+    0%, 91%, 100% { opacity: 0; }
+    92%   { opacity: .75; }
+    93%   { opacity: .12; }
+    94%   { opacity: 1; }
+    97%   { opacity: .2; }
+    99%   { opacity: 0; }
+}
+@keyframes hw-logo-glow {
+    0%, 100% { box-shadow: 0 0 8px rgba(255, 122, 26, .45); }
+    50%      { box-shadow: 0 0 20px rgba(255, 122, 26, .95); }
+}
+@keyframes hw-rise {
+    0%   { transform: translate(0, 0) scale(1);                              opacity: 0; }
+    10%  { opacity: .95; }
+    50%  { transform: translate(var(--sway), -56vh) scale(.85); }
+    85%  { opacity: .45; }
+    100% { transform: translate(calc(var(--sway) * -.6), -112vh) scale(.4); opacity: 0; }
+}
+@keyframes hw-fall {
+    0%   { transform: translateY(0) rotate(0); opacity: 1; }
+    85%  { opacity: 1; }
+    100% { transform: translateY(112vh) rotate(var(--spin, 360deg)); opacity: 0; }
+}
 @keyframes hw-glow   { 0%,100% { filter: drop-shadow(0 0 2px rgba(255,122,26,.4)); } 50% { filter: drop-shadow(0 0 9px rgba(255,122,26,.95)); } }
 
 /* ══════════════ AJUSTES ══════════════ */
 @media (max-width: 575.98px) {
-    .hw-ghost, .hw-spider.hide-sm, .hw-moon { display: none; }
+    .hw-ghost, .hw-spider.hide-sm, .hw-moon, .hw-lightning svg { display: none; }
+    html.hw .hw-hat { width: 46px; top: -22px; right: -12px; }
     .hw-web { width: 56px; }
 }
 @media (prefers-reduced-motion: reduce) {
     .hw-bat, .hw-bat-in, .hw-bat svg, .hw-ghost, .hw-thread, .hw-fog, .hw-moon,
-    html.hw #hwToggle, html.hw .brand-header::before { animation: none !important; }
+    html.hw #hwToggle, html.hw .brand-title, html.hw .hw-logo img, html.hw .gym-logo-wrap { animation: none !important; }
+    .hw-ember, .hw-lightning { display: none; }
     .hw-bat { left: 12vw; }
 }
 /* Recibos, facturas e impresiones salen limpios */
 @media print {
-    #hw-decor, #hw-top { display: none !important; }
+    #hw-decor, #hw-top, .hw-rain, .hw-hat { display: none !important; }
     html.hw footer.bg-dark::before { content: none; }
 }

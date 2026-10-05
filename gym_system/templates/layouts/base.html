@@ -11,7 +11,7 @@
     <script src="{{ url_for('static', filename='js/halloween.js') }}"></script>
     {% block extra_css %}{% endblock %}
 </head>
-<body>
+<body class="{% block body_class %}{% endblock %}">
     {% include 'layouts/navbar.html' %}
     <div class="d-flex">
         {% include 'layouts/sidebar.html' %}

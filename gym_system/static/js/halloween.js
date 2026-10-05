@@ -51,6 +51,10 @@
         '<path d="M0 0 L100 0 M0 0 L96 34 M0 0 L82 68 M0 0 L58 90 M0 0 L28 99 M0 0 L0 100"/>' +
         '<path d="M26 0 Q20 20 0 26 M50 0 Q38 38 0 50 M74 0 Q55 55 0 74 M98 0 Q72 72 0 98"/></g></svg>';
 
+    var BOLT = '<svg viewBox="0 0 120 300" xmlns="http://www.w3.org/2000/svg">' +
+        '<polyline points="78,0 52,96 70,102 34,208 52,214 22,300" fill="none" stroke="#ffd9a8" ' +
+        'stroke-width="3" stroke-linejoin="round" stroke-linecap="round"/></svg>';
+
     /* ── Construcción / limpieza ────────────────────────────────── */
     function el(html) {
         var d = document.createElement('div');
@@ -66,11 +70,8 @@
         var decor = el('<div id="hw-decor" aria-hidden="true"></div>');
 
         var bats = [  // top, duración, retraso (negativo = ya en vuelo), ancho
-            ['9vh',  '19s',  '-3s', 40],
-            ['22vh', '26s', '-14s', 30],
-            ['38vh', '22s',  '-8s', 34],
-            ['58vh', '30s', '-21s', 26],
-            ['74vh', '24s',  '-1s', 32]
+            ['14vh', '26s',  '-5s', 38],
+            ['52vh', '34s', '-20s', 30]
         ];
         bats.forEach(function (b) {
             var bat = el('<div class="hw-bat"><div class="hw-bat-in">' +
@@ -81,6 +82,25 @@
             bat.firstChild.style.animationDuration = (3 + b[3] / 10) + 's';
             decor.appendChild(bat);
         });
+
+        /* Brasas: chispas naranjas que suben despacio */
+        var small = window.innerWidth < 576;
+        var embers = small ? 12 : 26;
+        for (var i = 0; i < embers; i++) {
+            var em = el('<span class="hw-ember"></span>');
+            var size = 2 + Math.random() * 4;                       // 2–6 px
+            em.style.setProperty('--x',     (Math.random() * 100).toFixed(1) + 'vw');
+            em.style.setProperty('--s',     size.toFixed(1) + 'px');
+            em.style.setProperty('--d',     (14 + Math.random() * 12).toFixed(1) + 's');   // lento
+            em.style.setProperty('--delay', (-Math.random() * 26).toFixed(1) + 's');       // ya en vuelo
+            em.style.setProperty('--sway',  ((Math.random() * 90) - 45).toFixed(0) + 'px');
+            decor.appendChild(em);
+        }
+
+        
+        if (document.querySelector('.login-wrapper')) {
+            decor.appendChild(el('<div class="hw-lightning">' + BOLT + '</div>'));
+        }
 
         decor.appendChild(el('<div class="hw-ghost">' + GHOST + '</div>'));
         if (standalone) {
@@ -120,6 +140,26 @@
         root.classList.toggle('hw', on);
         if (on) { build(); } else { destroy(); }
     }
+
+    /* ── 🎃🍬 Lluvia de calabazas y dulces (al registrar un pago) ───── */
+    var TREATS = ['🎃', '🍬', '🍭', '🎃', '🍫', '🍬'];
+    window.hwCelebrate = function () {
+        if (!root.classList.contains('hw')) { return; }                      // tema apagado
+        if (window.matchMedia && matchMedia('(prefers-reduced-motion: reduce)').matches) { return; }
+        var box = el('<div class="hw-rain" aria-hidden="true"></div>');
+        var n = window.innerWidth < 576 ? 22 : 40;
+        for (var i = 0; i < n; i++) {
+            var t = el('<span class="hw-treat">' + TREATS[i % TREATS.length] + '</span>');
+            t.style.left = (Math.random() * 100).toFixed(1) + 'vw';
+            t.style.fontSize = (18 + Math.random() * 20).toFixed(0) + 'px';
+            t.style.animationDuration = (2.4 + Math.random() * 2).toFixed(2) + 's';
+            t.style.animationDelay = (Math.random() * 1.1).toFixed(2) + 's';
+            t.style.setProperty('--spin', ((Math.random() < .5 ? -1 : 1) * (180 + Math.random() * 360)).toFixed(0) + 'deg');
+            box.appendChild(t);
+        }
+        document.body.appendChild(box);
+        setTimeout(function () { box.remove(); }, 6000);
+    };
 
     document.addEventListener('DOMContentLoaded', function () {
         var btn = document.getElementById('hwToggle');

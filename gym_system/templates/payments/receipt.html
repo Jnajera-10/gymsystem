@@ -87,3 +87,14 @@
     </div>
 </div>
 {% endblock %}
+
+{% block extra_js %}
+{% if celebrate %}
+<script>
+    {# 🎃 Lluvia de calabazas y dulces al registrar un pago (solo si el tema Halloween está activo) #}
+    window.addEventListener('load', function () {
+        if (window.hwCelebrate) { window.hwCelebrate(); }
+    });
+</script>
+{% endif %}
+{% endblock %}

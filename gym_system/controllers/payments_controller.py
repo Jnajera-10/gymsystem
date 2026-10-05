@@ -2,7 +2,7 @@ from datetime import datetime
 import pytz
 BOGOTA = pytz.timezone("America/Bogota")
 
-from flask import request, redirect, url_for, flash, render_template
+from flask import request, redirect, url_for, flash, render_template, session
 from database.models.payment import Payment, SHIFT_MORNING, SHIFT_AFTERNOON, _get_shift
 from database.models.client import Client
 from database.models.membership import Membership
@@ -149,6 +149,7 @@ class PaymentsController:
                     flash(f'✅ Membresía activada también para los {len(familiar_payments)} integrantes adicionales del Plan Familiar.', 'info')
 
                 flash('Pago registrado correctamente.', 'success')
+                session['hw_celebrate'] = True   # 🎃 lluvia de dulces en el recibo (solo en temporada)
                 return redirect(url_for('payments.receipt', payment_id=payment.id))
             else:
                 flash('No se pudo registrar el pago.', 'danger')
@@ -230,6 +231,7 @@ class PaymentsController:
                         )
                     flash(f'✅ Membresía activada también para los {len(familiar_payments)} integrantes adicionales del Plan Familiar.', 'info')
                 flash('Renovación registrada correctamente.', 'success')
+                session['hw_celebrate'] = True   # 🎃 lluvia de dulces en el recibo (solo en temporada)
                 return redirect(url_for('payments.receipt', payment_id=payment.id))
             else:
                 flash('No se pudo registrar la renovación.', 'danger')
@@ -291,7 +293,8 @@ class PaymentsController:
                 .count()
             )
 
-        return render_template('payments/receipt.html', payment=payment, daily_count=daily_count)
+        celebrate = session.pop('hw_celebrate', False)
+        return render_template('payments/receipt.html', payment=payment, daily_count=daily_count, celebrate=celebrate)
 
     @staticmethod
     def delete(payment_id):

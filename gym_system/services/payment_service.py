@@ -9,6 +9,15 @@ from datetime import datetime, timedelta
 BOGOTA = pytz.timezone('America/Bogota')
 
 
+def _current_user_id():
+    """ID del usuario logueado (None si no hay request/sesión)."""
+    try:
+        from flask import session
+        return session.get('user_id')
+    except Exception:
+        return None
+
+
 class PaymentService:
 
     @staticmethod
@@ -142,6 +151,7 @@ class PaymentService:
             shift            = form_data.get('shift', _get_shift()),
             cash_received    = cash_received,
             cash_change      = cash_change,
+            created_by       = _current_user_id(),
         )
         db.session.add(payment)
 
@@ -159,6 +169,7 @@ class PaymentService:
                 payment_method   = primary_method,   # solo el nombre, sin monto
                 notes            = f'Plan Pareja — vinculado al pago del cliente #{form_data["client_id"]}',
                 partner_client_id= int(form_data['client_id']),
+                created_by       = _current_user_id(),
             )
             db.session.add(partner_payment)
 
@@ -176,6 +187,7 @@ class PaymentService:
                     payment_method   = primary_method,
                     notes            = f'Plan Familiar — vinculado al pago del cliente #{form_data["client_id"]}',
                     partner_client_id= int(form_data['client_id']),
+                    created_by       = _current_user_id(),
                 )
                 db.session.add(fam_payment)
                 familiar_payments.append(fam_payment)

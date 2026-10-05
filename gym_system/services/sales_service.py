@@ -5,7 +5,8 @@ from services.inventory_service import InventoryService
 
 class SalesService:
     @staticmethod
-    def create_sale(client_id, items_data, payment_method, notes=None):
+    def create_sale(client_id, items_data, payment_method, notes=None,
+                    customer_name=None, created_by=None):
         # Validar stock de todos los productos ANTES de escribir nada
         for item in items_data:
             product = Product.query.get(item['product_id'])
@@ -17,7 +18,10 @@ class SalesService:
 
         try:
             total = 0
-            sale = Sale(client_id=client_id, payment_method=payment_method, notes=notes, total=0)
+            # Si hay cliente registrado se ignora el nombre libre
+            sale = Sale(client_id=client_id, payment_method=payment_method, notes=notes, total=0,
+                        customer_name=None if client_id else customer_name,
+                        created_by=created_by)
             db.session.add(sale)
             db.session.flush()
 

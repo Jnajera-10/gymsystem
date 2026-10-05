@@ -36,6 +36,9 @@ class Payment(db.Model):
     cash_received    = db.Column(db.Float, nullable=True)   # lo que dio el cliente
     cash_change      = db.Column(db.Float, nullable=True)   # vuelto devuelto
 
+    # ── Quién registró el pago (para que cada recepcionista vea solo lo suyo) ──
+    created_by       = db.Column(db.Integer, db.ForeignKey('users.id'), nullable=True)
+
     # Plan pareja: segundo cliente (opcional, solo para couple plan)
     partner_client_id = db.Column(db.Integer, db.ForeignKey('clients.id'), nullable=True)
 
@@ -47,6 +50,7 @@ class Payment(db.Model):
     frozen_days_total = db.Column(db.Integer, default=0)  # histórico acumulado
 
     membership = db.relationship('Membership', backref='payments')
+    creator    = db.relationship('User', foreign_keys=[created_by], lazy=True)
     partner    = db.relationship(
         'Client',
         foreign_keys=[partner_client_id],

@@ -1,4 +1,4 @@
-from flask import Blueprint, render_template, request, redirect, url_for, flash
+from flask import Blueprint, render_template, request, redirect, url_for, flash, session
 from database.models.sales import Sale
 from database.models.inventory import Product
 from database.models.client import Client
@@ -36,6 +36,8 @@ def new():
         client_id = request.form.get('client_id') or None
         payment_method = request.form.get('payment_method', 'efectivo')
         notes = request.form.get('notes', '').strip() or None
+        # Cliente NO registrado: basta con escribir el nombre
+        customer_name = request.form.get('customer_name', '').strip()[:150] or None
 
         product_ids = request.form.getlist('product_id')
         quantities = request.form.getlist('quantity')
@@ -60,7 +62,11 @@ def new():
             return render_template('sales/new_sale.html', products=products, clients=clients)
 
         try:
-            sale = SalesService.create_sale(client_id, items, payment_method, notes)
+            sale = SalesService.create_sale(
+                client_id, items, payment_method, notes,
+                customer_name=customer_name,
+                created_by=session.get('user_id'),
+            )
             flash('Venta registrada exitosamente.', 'success')
             return redirect(url_for('sales.invoice', sid=sale.id))
         except ValueError as e:

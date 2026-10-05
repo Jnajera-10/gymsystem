@@ -26,7 +26,7 @@
                     {% for s in sales %}
                     <tr>
                         <td>{{ s.id }}</td>
-                        <td>{{ s.client.full_name if s.client else 'Cliente general' }}</td>
+                        <td>{{ s.display_client }}</td>
                         <td class="fw-bold text-success">${{ '{:,.0f}'.format(s.total) }}</td>
                         <td>{{ s.payment_method }}</td>
                         <td>{{ s.sale_date.strftime('%d/%m/%Y %H:%M') }}</td>

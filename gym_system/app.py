@@ -93,6 +93,26 @@ def create_app():
         except Exception:
             pass
 
+        # ── Migración automática: quién registró pagos/ventas + cliente libre ──
+        # Usa inspect() para que funcione igual en PostgreSQL y SQLite.
+        try:
+            from sqlalchemy import text as _t3, inspect as _insp3
+            _insp = _insp3(db.engine)
+            _wanted = {
+                'payments': [('created_by', 'INTEGER')],
+                'sales':    [('created_by', 'INTEGER'),
+                             ('customer_name', 'VARCHAR(150)')],
+            }
+            for _table, _cols in _wanted.items():
+                _existing = {c['name'] for c in _insp.get_columns(_table)}
+                for _col, _type in _cols:
+                    if _col not in _existing:
+                        with db.engine.connect() as _c3:
+                            _c3.execute(_t3(f"ALTER TABLE {_table} ADD COLUMN {_col} {_type}"))
+                            _c3.commit()
+        except Exception as _e3:
+            print(f'[migración created_by/customer_name] {_e3}')
+
         # ── Migración automática: payment_method VARCHAR(30) → VARCHAR(120) ──
         # Necesario porque los pagos divididos (ej. "efectivo:50000|nequi:30000")
         # pueden superar 30 caracteres. Se ejecuta en cada arranque; es

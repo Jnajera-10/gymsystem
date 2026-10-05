@@ -26,7 +26,7 @@
                 <div class="row mb-3">
                     <div class="col-6">
                         <p class="mb-1"><strong>Cliente:</strong><br>
-                            {{ sale.client.full_name if sale.client else 'Cliente general' }}</p>
+                            {{ sale.display_client }}</p>
                     </div>
                     <div class="col-6 text-end">
                         <p class="mb-1"><strong>Método de pago:</strong><br>{{ sale.payment_method }}</p>

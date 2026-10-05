@@ -1,4 +1,4 @@
-from flask import render_template, request, redirect, url_for, flash
+from flask import render_template, request, redirect, url_for, flash, session
 from database.models.client import Client
 from database.models.attendance import Attendance
 from database.models.inventory import Product
@@ -20,6 +20,10 @@ class DashboardController:
     def index():
         now   = datetime.now(BOGOTA)
         today = now.date()
+
+        # Rol: el admin ve todo; la recepcionista ve SOLO lo que ella vendió hoy.
+        is_admin = session.get('user_role') == 'admin'
+        uid      = session.get('user_id')
 
         # Inicio del mes actual (reemplaza el antiguo JUNE_START hardcodeado).
         # Se recalcula cada vez, así las cifras "desde inicio de mes" se
@@ -72,10 +76,13 @@ class DashboardController:
 
         # ── Ingresos de inventario (ventas de productos) ──────────────
         # Hoy
-        today_sales = Sale.query.filter(
+        today_sales_q = Sale.query.filter(
             db.func.date(Sale.sale_date) == today,
             Sale.is_deleted == False,
-        ).all()
+        )
+        if not is_admin:
+            today_sales_q = today_sales_q.filter(Sale.created_by == uid)
+        today_sales = today_sales_q.all()
         today_inventory_income = sum(s.total for s in today_sales)
 
         # Mes actual
@@ -96,7 +103,10 @@ class DashboardController:
 
         # ── Egresos ───────────────────────────────────────────────────
         # Hoy
-        today_expenses_list = Expense.query.filter_by(date=today).order_by(Expense.created_at.desc()).all()
+        today_expenses_list = (
+            Expense.query.filter_by(date=today).order_by(Expense.created_at.desc()).all()
+            if is_admin else []
+        )
         today_expenses_total = sum(e.amount for e in today_expenses_list)
 
         # Mes actual
@@ -160,13 +170,19 @@ class DashboardController:
         )
 
         # ── Caja del día: desglose por método ─────────────────────────
-        today_payments = Payment.query.filter(
+        today_payments_q = Payment.query.filter(
             Payment.payment_date == today,
             Payment.is_deleted   == False,
-        ).all()
+        )
+        if not is_admin:
+            today_payments_q = today_payments_q.filter(Payment.created_by == uid)
+        today_payments = today_payments_q.all()
 
         # Pagos reales (excluye espejo del plan pareja que tiene amount=0)
         today_payments_real = [p for p in today_payments if p.amount > 0]
+
+        # Ingreso de hoy: admin = todo el gimnasio; recepcionista = solo lo suyo
+        stats['today_income'] = sum(p.amount for p in today_payments_real)
 
         cash_breakdown = {}
         for p in today_payments_real:
@@ -219,6 +235,8 @@ class DashboardController:
         # Ganancia neta del día = ingresos membresías + inventario - base - egresos
         net_income = (stats['today_income'] + today_inventory_income
                       - (opening_cash or 0) - today_expenses_total)
+        if not is_admin:
+            net_income = None   # la ganancia neta del gimnasio es solo del admin
 
         # ── Ganancias exclusivas plan Diario ─────────────────────────
         # Se filtra por payment_date (fecha en que se registró el pago),
@@ -234,6 +252,7 @@ class DashboardController:
                 Payment.payment_date == today,
                 Payment.is_deleted   == False,
                 MembershipModel.membership_type == 'diario',
+                *([] if is_admin else [Payment.created_by == uid]),
             ).all()
         )
         daily_today_income = sum(p.amount for p in daily_today_payments)
@@ -252,8 +271,23 @@ class DashboardController:
         daily_month_income = sum(p.amount for p in daily_month_payments)
         daily_count_month  = len(daily_month_payments)
 
+        # ── Últimos 10 pagos recientes (solo admin) ─────────────────────
+        # Orden por fecha/hora de registro real; excluye espejos de plan
+        # pareja/familiar (amount = 0) y pagos eliminados.
+        recent_payments = []
+        if is_admin:
+            recent_payments = (
+                Payment.query
+                .filter(Payment.is_deleted == False, Payment.amount > 0)
+                .order_by(Payment.created_at.desc(), Payment.id.desc())
+                .limit(10)
+                .all()
+            )
+
         return render_template(
             'dashboard/dashboard.html',
+            is_admin                = is_admin,
+            recent_payments         = recent_payments,
             stats                   = stats,
             today                   = today,
             expiring_payments       = expiring_payments,

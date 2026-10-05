@@ -1,0 +1,192 @@
+/* ══════════════════════════════════════════════════════════════════
+   🎃 TEMA HALLOWEEN — Body-Fit
+   Todo está limitado a  html.hw  (la clase la pone halloween.js).
+   Si se quita la clase, el sistema vuelve a verse exactamente igual.
+   ══════════════════════════════════════════════════════════════════ */
+
+/* ── Capas de decoración (nunca bloquean clics) ─────────────────── */
+#hw-decor, #hw-top {
+    pointer-events: none;
+    z-index: 999;           /* sobre el contenido, bajo dropdowns y modales */
+}
+#hw-decor { position: fixed; inset: 0; overflow: hidden; }
+#hw-top   { position: absolute; top: 0; left: 0; right: 0; height: 0; }
+
+/* ── Paleta ─────────────────────────────────────────────────────── */
+html.hw {
+    --hw-orange: #ff7a1a;
+    --hw-purple: #6b2fb3;
+    --hw-night:  #14091f;
+    --hw-night2: #2a1442;
+}
+
+/* ── Fondo general (muy suave para no cansar la vista) ──────────── */
+html.hw body {
+    background: linear-gradient(180deg, #f6f0fa 0%, #fdf4ea 100%) fixed;
+}
+
+/* ── Navbar ─────────────────────────────────────────────────────── */
+html.hw .navbar.bg-dark {
+    background: linear-gradient(90deg, var(--hw-night) 0%, var(--hw-night2) 50%, var(--hw-night) 100%) !important;
+    border-bottom: 3px solid var(--hw-orange);
+    box-shadow: 0 3px 16px rgba(255, 122, 26, .45);
+}
+html.hw .navbar-brand span { color: #ffb366; text-shadow: 0 0 10px rgba(255, 122, 26, .6); }
+
+/* Botón 🎃 para activar/desactivar */
+#hwToggle { line-height: 1; padding: .22rem .5rem; font-size: 1.05rem; }
+html:not(.hw) #hwToggle { filter: grayscale(1); opacity: .6; }
+html.hw #hwToggle { animation: hw-glow 2.4s ease-in-out infinite; }
+
+/* ── Sidebar ────────────────────────────────────────────────────── */
+html.hw .sidebar.bg-dark {
+    background: linear-gradient(180deg, #1a0b2b 0%, #12071d 100%) !important;
+    border-right: 2px solid rgba(255, 122, 26, .35);
+}
+html.hw .sidebar .nav-link:hover,
+html.hw .sidebar .nav-link.active {
+    background: rgba(255, 122, 26, .22);
+    box-shadow: inset 3px 0 0 var(--hw-orange);
+}
+html.hw .sidebar .text-warning { color: #ffa24d !important; }
+
+/* ── Títulos, tarjetas, botones, tablas ─────────────────────────── */
+html.hw main h4 { color: #3b1a5a; }
+html.hw main h4 > i { color: var(--hw-orange); }
+
+html.hw .card { border-top: 3px solid var(--hw-orange); }
+html.hw .card.border-danger,
+html.hw .card.border-warning,
+html.hw .card.border-success,
+html.hw .card.border-primary { border-top-width: 3px; }
+
+html.hw .btn-primary {
+    --bs-btn-bg: var(--hw-purple);          --bs-btn-border-color: var(--hw-purple);
+    --bs-btn-hover-bg: #5a24a0;             --bs-btn-hover-border-color: #5a24a0;
+    --bs-btn-active-bg: #4d1d8a;            --bs-btn-active-border-color: #4d1d8a;
+    --bs-btn-disabled-bg: var(--hw-purple); --bs-btn-disabled-border-color: var(--hw-purple);
+}
+html.hw .btn-outline-primary {
+    --bs-btn-color: var(--hw-purple);       --bs-btn-border-color: var(--hw-purple);
+    --bs-btn-hover-bg: var(--hw-purple);    --bs-btn-hover-border-color: var(--hw-purple);
+    --bs-btn-active-bg: var(--hw-purple);   --bs-btn-active-border-color: var(--hw-purple);
+}
+html.hw .table-dark { --bs-table-bg: #2a1442; --bs-table-border-color: #3d2060; }
+html.hw .form-control:focus,
+html.hw .form-select:focus {
+    border-color: var(--hw-orange);
+    box-shadow: 0 0 0 .2rem rgba(255, 122, 26, .22);
+}
+
+/* ── Footer ─────────────────────────────────────────────────────── */
+html.hw footer.bg-dark {
+    background: linear-gradient(90deg, var(--hw-night), var(--hw-night2), var(--hw-night)) !important;
+    border-top: 3px solid var(--hw-orange);
+}
+html.hw footer.bg-dark::before {
+    content: "🎃  ¡Feliz Halloween!  🎃";
+    display: block;
+    color: #ffa24d;
+    font-weight: 600;
+    letter-spacing: .06em;
+}
+
+/* ══════════════ MURCIÉLAGOS ══════════════ */
+.hw-bat {
+    position: absolute;
+    left: 0;
+    animation: hw-fly linear infinite;
+}
+.hw-bat-in  { animation: hw-wobble ease-in-out infinite; }
+.hw-bat svg { display: block; fill: #3a1a5e; stroke: #ff9a3c; stroke-width: 1.4; stroke-linejoin: round;
+               filter: drop-shadow(0 0 4px rgba(255,122,26,.55)); animation: hw-flap .35s ease-in-out infinite alternate; }
+
+/* ══════════════ FANTASMA ══════════════ */
+.hw-ghost {
+    position: absolute;
+    right: 18px; bottom: 22px;
+    width: 52px;
+    opacity: .9;
+    filter: drop-shadow(0 0 10px rgba(255, 255, 255, .55));
+    animation: hw-float 4s ease-in-out infinite;
+}
+
+/* ══════════════ ARAÑAS (cuelgan del navbar) ══════════════ */
+.hw-spider {
+    position: absolute;
+    top: 0;
+    display: flex; flex-direction: column; align-items: center;
+    transform: translateX(-50%);
+}
+.hw-thread {
+    display: block;
+    width: 1.5px;
+    background: rgba(255, 255, 255, .75);
+    height: var(--len, 80px);
+    animation: hw-drop var(--dur, 5s) ease-in-out infinite;
+}
+.hw-spider svg { display: block; width: 26px; fill: #120818; filter: drop-shadow(0 1px 2px rgba(0,0,0,.5)); }
+
+/* ══════════════ TELARAÑAS (esquinas del navbar) ══════════════ */
+.hw-web { position: absolute; top: 0; width: 84px; opacity: .45; }
+.hw-web.l { left: 0; }
+.hw-web.r { right: 0; transform: scaleX(-1); }
+
+/* ══════════════ LUNA Y NIEBLA (solo login / bienvenida) ══════════════ */
+.hw-moon {
+    position: absolute;
+    top: 6vh; right: 8vw;
+    width: 96px; height: 96px; border-radius: 50%;
+    background:
+        radial-gradient(circle at 32% 30%, rgba(190,175,130,.55) 0 9%, transparent 10%),
+        radial-gradient(circle at 62% 58%, rgba(190,175,130,.45) 0 12%, transparent 13%),
+        radial-gradient(circle at 45% 78%, rgba(190,175,130,.4) 0 6%, transparent 7%),
+        radial-gradient(circle at 35% 30%, #fffbe6, #ffe9a8 70%);
+    box-shadow: 0 0 50px 14px rgba(255, 233, 168, .35);
+    animation: hw-glow 5s ease-in-out infinite;
+}
+.hw-fog {
+    position: absolute; left: 0; bottom: 0;
+    width: 200%; height: 30vh;
+    background:
+        radial-gradient(ellipse 25% 70% at 25% 100%, rgba(168, 120, 230, .30), transparent 70%),
+        radial-gradient(ellipse 30% 55% at 75% 100%, rgba(255, 140, 60, .18), transparent 70%);
+    background-size: 50% 100%;
+    background-repeat: repeat-x;
+    animation: hw-drift 40s linear infinite;
+}
+
+/* ══════════════ LOGIN ══════════════ */
+html.hw .bg-floor {
+    background:
+        radial-gradient(ellipse 60% 45% at 50% 0%, rgba(255, 122, 26, .22) 0%, transparent 60%),
+        radial-gradient(ellipse 80% 60% at 50% 100%, rgba(107, 47, 179, .35) 0%, transparent 70%),
+        linear-gradient(180deg, #07030c 0%, #12071d 55%, #1a0b2b 100%) !important;
+}
+html.hw .login-card { box-shadow: 0 0 46px rgba(255, 122, 26, .28), 0 10px 40px rgba(0, 0, 0, .6) !important; }
+html.hw .brand-header::before { content: "🎃"; display: block; font-size: 2.4rem; margin-bottom: 4px; animation: hw-float 3.6s ease-in-out infinite; }
+
+/* ══════════════ ANIMACIONES ══════════════ */
+@keyframes hw-fly    { from { transform: translateX(-90px); }  to { transform: translateX(calc(100vw + 90px)); } }
+@keyframes hw-wobble { 0%,100% { transform: translateY(0); }   50% { transform: translateY(-28px); } }
+@keyframes hw-flap   { from { transform: scaleY(1); }          to { transform: scaleY(.45); } }
+@keyframes hw-float  { 0%,100% { transform: translateY(0); }   50% { transform: translateY(-14px); } }
+@keyframes hw-drop   { 0%,100% { height: var(--len, 80px); }   50% { height: calc(var(--len, 80px) + 14px); } }
+@keyframes hw-drift  { from { transform: translateX(0); }      to { transform: translateX(-50%); } }
+@keyframes hw-glow   { 0%,100% { filter: drop-shadow(0 0 2px rgba(255,122,26,.4)); } 50% { filter: drop-shadow(0 0 9px rgba(255,122,26,.95)); } }
+
+/* ══════════════ AJUSTES ══════════════ */
+@media (max-width: 575.98px) {
+    .hw-ghost, .hw-spider.hide-sm, .hw-moon { display: none; }
+    .hw-web { width: 56px; }
+}
+@media (prefers-reduced-motion: reduce) {
+    .hw-bat, .hw-bat-in, .hw-bat svg, .hw-ghost, .hw-thread, .hw-fog, .hw-moon,
+    html.hw #hwToggle, html.hw .brand-header::before { animation: none !important; }
+    .hw-bat { left: 12vw; }
+}
+/* Recibos, facturas e impresiones salen limpios */
+@media print {
+    #hw-decor, #hw-top { display: none !important; }
+    html.hw footer.bg-dark::before { content: none; }
+}

@@ -1,4 +1,4 @@
-from flask import Blueprint, render_template, request, redirect, url_for, flash
+from flask import Blueprint, render_template, request, redirect, url_for, flash, session
 from database.models.attendance import Attendance
 from database.models.client import Client
 from database.models.payment import Payment
@@ -26,7 +26,9 @@ def _clients_with_active_membership():
         .where(
             Payment.is_deleted == False,
             Payment.start_date <= today,
-            Payment.end_date   >= today,
+            # Las membresías congeladas también aparecen: así recepción puede
+            # intentar marcarlas y el admin recibe el aviso.
+            db.or_(Payment.end_date >= today, Payment.is_frozen == True),
         )
         .distinct()
     )
@@ -70,12 +72,13 @@ def register():
         return redirect(url_for('attendance.index'))
 
     # Verificar membresía activa antes de registrar
+    # (una membresía congelada cuenta como vigente, igual que en el flujo facial)
     today = datetime.now(BOGOTA).date()
     has_active = Payment.query.filter(
         Payment.client_id  == int(client_id),
         Payment.is_deleted == False,
         Payment.start_date <= today,
-        Payment.end_date   >= today,
+        db.or_(Payment.end_date >= today, Payment.is_frozen == True),
     ).first()
 
     if not has_active:
@@ -83,6 +86,17 @@ def register():
         nombre = client.full_name if client else 'Cliente'
         flash(f'⚠️ {nombre} no tiene membresía activa. Registra un pago primero.', 'warning')
         return redirect(url_for('attendance.index'))
+
+    # ── Membresía congelada: avisar al admin por Telegram ──────────
+    frozen_payment = AttendanceService.get_frozen_payment(int(client_id))
+    if frozen_payment:
+        client = Client.query.get(int(client_id))
+        AttendanceService.notify_frozen_attempt(
+            client, frozen_payment,
+            source='manual',
+            registered_by=session.get('user_username'),
+        )
+        flash(f'❄️ La membresía de {client.full_name} está congelada. Se notificó al administrador.', 'warning')
 
     AttendanceService.register(int(client_id))
     flash('✅ Asistencia registrada.', 'success')

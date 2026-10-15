@@ -1,4 +1,4 @@
-from flask import Blueprint, render_template, request, jsonify
+from flask import Blueprint, render_template, request, jsonify, session
 from datetime import datetime
 import pytz
 
@@ -141,6 +141,15 @@ def verify_face():
             'message': f'{client.full_name} no tiene membresía activa.',
         })
 
+    # ── Membresía congelada: avisar al admin por Telegram ──────────
+    frozen_payment = AttendanceService.get_frozen_payment(client.id)
+    if frozen_payment:
+        AttendanceService.notify_frozen_attempt(
+            client, frozen_payment,
+            source='facial',
+            registered_by=session.get('user_username'),
+        )
+
     AttendanceService.register(client.id)
 
     return jsonify({
@@ -149,5 +158,9 @@ def verify_face():
         'client_name': client.full_name,
         'client_id': client.id,
         'distance': round(distance, 3) if distance is not None else None,
-        'message': f'Bienvenido, {client.full_name}.',
+        'frozen': bool(frozen_payment),
+        'message': (
+            f'{client.full_name}: membresía congelada. Se notificó al administrador.'
+            if frozen_payment else f'Bienvenido, {client.full_name}.'
+        ),
     })

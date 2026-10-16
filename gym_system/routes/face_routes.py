@@ -141,14 +141,21 @@ def verify_face():
             'message': f'{client.full_name} no tiene membresía activa.',
         })
 
-    # ── Membresía congelada: avisar al admin por Telegram ──────────
-    frozen_payment = AttendanceService.get_frozen_payment(client.id)
+    # ── Membresía congelada: NO se registra, se avisa al admin ─────
+    frozen_payment = AttendanceService.blocking_frozen_payment(client.id)
     if frozen_payment:
         AttendanceService.notify_frozen_attempt(
             client, frozen_payment,
             source='facial',
             registered_by=session.get('user_username'),
         )
+        return jsonify({
+            'ok': True,
+            'status': 'frozen',
+            'client_name': client.full_name,
+            'client_id': client.id,
+            'message': f'❄️ {client.full_name}: membresía congelada. Debe descongelarla el dueño.',
+        })
 
     AttendanceService.register(client.id)
 
@@ -158,9 +165,5 @@ def verify_face():
         'client_name': client.full_name,
         'client_id': client.id,
         'distance': round(distance, 3) if distance is not None else None,
-        'frozen': bool(frozen_payment),
-        'message': (
-            f'{client.full_name}: membresía congelada. Se notificó al administrador.'
-            if frozen_payment else f'Bienvenido, {client.full_name}.'
-        ),
+        'message': f'Bienvenido, {client.full_name}.',
     })

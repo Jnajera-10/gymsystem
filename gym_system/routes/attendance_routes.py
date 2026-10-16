@@ -60,6 +60,7 @@ def index():
         today_list     = today_list,
         clients        = active_clients,
         search_q       = q,
+        frozen_ids     = AttendanceService.frozen_client_ids(),
     )
 
 
@@ -71,24 +72,8 @@ def register():
         flash('Selecciona un cliente.', 'danger')
         return redirect(url_for('attendance.index'))
 
-    # Verificar membresía activa antes de registrar
-    # (una membresía congelada cuenta como vigente, igual que en el flujo facial)
-    today = datetime.now(BOGOTA).date()
-    has_active = Payment.query.filter(
-        Payment.client_id  == int(client_id),
-        Payment.is_deleted == False,
-        Payment.start_date <= today,
-        db.or_(Payment.end_date >= today, Payment.is_frozen == True),
-    ).first()
-
-    if not has_active:
-        client = Client.query.get(int(client_id))
-        nombre = client.full_name if client else 'Cliente'
-        flash(f'⚠️ {nombre} no tiene membresía activa. Registra un pago primero.', 'warning')
-        return redirect(url_for('attendance.index'))
-
-    # ── Membresía congelada: avisar al admin por Telegram ──────────
-    frozen_payment = AttendanceService.get_frozen_payment(int(client_id))
+    # ── Membresía congelada: NO se registra, se avisa al admin ─────
+    frozen_payment = AttendanceService.blocking_frozen_payment(int(client_id))
     if frozen_payment:
         client = Client.query.get(int(client_id))
         AttendanceService.notify_frozen_attempt(
@@ -96,7 +81,28 @@ def register():
             source='manual',
             registered_by=session.get('user_username'),
         )
-        flash(f'❄️ La membresía de {client.full_name} está congelada. Se notificó al administrador.', 'warning')
+        flash(
+            f'❄️ La membresía de {client.full_name} está congelada. '
+            f'No se puede registrar la asistencia: debe descongelarla el dueño. '
+            f'Ya se le notificó.',
+            'danger',
+        )
+        return redirect(url_for('attendance.index'))
+
+    # Verificar membresía activa antes de registrar
+    today = datetime.now(BOGOTA).date()
+    has_active = Payment.query.filter(
+        Payment.client_id  == int(client_id),
+        Payment.is_deleted == False,
+        Payment.start_date <= today,
+        Payment.end_date   >= today,
+    ).first()
+
+    if not has_active:
+        client = Client.query.get(int(client_id))
+        nombre = client.full_name if client else 'Cliente'
+        flash(f'⚠️ {nombre} no tiene membresía activa. Registra un pago primero.', 'warning')
+        return redirect(url_for('attendance.index'))
 
     AttendanceService.register(int(client_id))
     flash('✅ Asistencia registrada.', 'success')

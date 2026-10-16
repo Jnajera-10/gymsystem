@@ -44,9 +44,15 @@
                         <select name="client_id" class="form-select" required>
                             <option value="">Selecciona cliente…</option>
                             {% for c in clients %}
-                            <option value="{{ c.id }}">{{ c.full_name }}</option>
+                            <option value="{{ c.id }}">{% if c.id in frozen_ids %}❄️ {% endif %}{{ c.full_name }}{% if c.id in frozen_ids %} — CONGELADA{% endif %}</option>
                             {% endfor %}
                         </select>
+                        {% if frozen_ids and clients|selectattr('id', 'in', frozen_ids)|list %}
+                        <div class="form-text text-danger">
+                            <i class="fas fa-snowflake me-1"></i>
+                            Los clientes marcados con ❄️ tienen la membresía congelada: no se les puede registrar asistencia hasta que el dueño la descongele.
+                        </div>
+                        {% endif %}
                         <div class="form-text text-success">
                             <i class="fas fa-check-circle me-1"></i>
                             {{ clients|length }} cliente{{ 's' if clients|length != 1 }} con membresía vigente

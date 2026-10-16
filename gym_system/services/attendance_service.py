@@ -53,6 +53,35 @@ class AttendanceService:
         )
 
     @staticmethod
+    def blocking_frozen_payment(client_id):
+        """
+        Retorna el pago congelado que impide marcar asistencia, o None si
+        el cliente puede entrar. Si además tiene otra membresía vigente
+        y NO congelada (ej. compró un plan nuevo), no se bloquea.
+        """
+        frozen = AttendanceService.get_frozen_payment(client_id)
+        if not frozen:
+            return None
+        today = datetime.now(BOGOTA).date()
+        otra_vigente = Payment.query.filter(
+            Payment.client_id == client_id,
+            Payment.is_deleted == False,
+            Payment.is_frozen == False,
+            Payment.start_date <= today,
+            Payment.end_date >= today,
+        ).first()
+        return None if otra_vigente else frozen
+
+    @staticmethod
+    def frozen_client_ids():
+        """IDs de clientes con una membresía congelada (para marcarlos en la lista)."""
+        rows = db.session.query(Payment.client_id).filter(
+            Payment.is_deleted == False,
+            Payment.is_frozen == True,
+        ).distinct().all()
+        return {r[0] for r in rows}
+
+    @staticmethod
     def notify_frozen_attempt(client, payment, source='manual', registered_by=None):
         """
         Avisa al admin (Telegram) que un cliente con la membresía congelada
@@ -101,7 +130,7 @@ class AttendanceService:
             lineas += [
                 f'🕑 <b>Hora:</b> {now.strftime("%H:%M")}',
                 '-' * 28,
-                '⚠️ Intentó marcar asistencia con la membresía congelada.',
+                '⛔ Intentó marcar asistencia con la membresía congelada. Se le negó la entrada: solo el dueño puede descongelarla.',
             ]
             mensaje = '\n'.join(lineas)
 

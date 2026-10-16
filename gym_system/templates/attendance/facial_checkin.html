@@ -121,8 +121,8 @@ document.addEventListener('DOMContentLoaded', () => {
     }
 
     function handleResult(data) {
-        if (data.status === 'checked_in' && data.frozen) {
-            setStatus(`<i class="fas fa-snowflake me-1 text-info"></i>${data.message}`, '#ffc107', 'rgba(255,193,7,.9)');
+        if (data.status === 'frozen') {
+            setStatus(`<i class="fas fa-snowflake me-1 text-info"></i>${data.message}`, '#dc3545', 'rgba(220,53,69,.9)');
             cooldownUntil = Date.now() + 8000;
         } else if (data.status === 'checked_in') {
             setStatus(`<i class="fas fa-check-circle me-1 text-success"></i>${data.message}`, '#198754', 'rgba(25,135,84,.9)');

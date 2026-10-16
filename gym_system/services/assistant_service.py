@@ -25,6 +25,7 @@ import logging
 import os
 import secrets
 import threading
+import time
 from datetime import datetime, timedelta
 
 import pytz
@@ -47,6 +48,10 @@ logger = logging.getLogger(__name__)
 MAX_TOOL_ROUNDS = 4
 MAX_HISTORY = 12
 MAX_PENDING = 5
+LLM_TIMEOUT = 30
+LLM_RETRY_STATUS = {500, 502, 503, 504}   # errores temporales del proveedor (saturado/caído)
+LLM_RETRY_DELAY = 1.5                      # segundos antes del único reintento
+MAX_PAYMENTS_LIST = 20
 PAYMENT_METHODS = ['efectivo', 'transferencia', 'nequi', 'daviplata', 'tarjeta', 'datafono']
 DOC_TYPES = ['CC', 'TI', 'CE', 'PAS']
 
@@ -77,6 +82,12 @@ TOOLS = [
           {'client_id': {'type': 'integer'}}, ['client_id']),
     _tool('resumen_hoy',
           'Resumen de hoy: pagos, ingresos y asistencias. Solo para administradores.', {}, []),
+    _tool('ultimos_pagos',
+          'Lista los últimos pagos registrados (cliente, plan, monto, método y fecha). Úsala para '
+          '"último pago", "pagos recientes" o "cuánto pagó X". Si se pasa client_id, filtra por '
+          'ese cliente (búscalo antes con buscar_cliente). Solo para administradores.',
+          {'limite': {'type': 'integer', 'description': 'Cuántos pagos mostrar (1-20, por defecto 5)'},
+           'client_id': {'type': 'integer', 'description': 'Opcional: solo pagos de este cliente'}}, []),
     _tool('registrar_cliente',
           'Prepara el registro de un cliente nuevo (requiere confirmación del usuario). '
           'Nombre y documento son obligatorios: si falta el documento, PREGÚNTALO, no lo inventes.',
@@ -124,6 +135,7 @@ def _system_prompt():
         '- Las acciones de escritura quedan pendientes: después de llamarlas, dile al usuario '
         'que revise el resumen y pulse "Confirmar". No digas que ya se hizo.\n'
         '- Plan Familiar no se puede registrar por aquí: indica que use el formulario de pagos.\n'
+        '- Para "último pago" o pagos recientes usa ultimos_pagos (si es de un cliente, búscalo antes con buscar_cliente).\n'
         '- Si piden algo que no puedes hacer (borrar, editar, reportes complejos), dilo y sugiere la pantalla correspondiente.'
     )
 
@@ -141,22 +153,42 @@ def _call_llm(messages):
         raise AssistantError('El asistente no está configurado: falta la variable AI_API_KEY.')
     base = os.environ.get('AI_BASE_URL', 'https://generativelanguage.googleapis.com/v1beta/openai').rstrip('/')
     model = os.environ.get('AI_MODEL', 'gemini-2.0-flash')
-    try:
-        r = requests.post(
-            f'{base}/chat/completions',
-            headers={'Authorization': f'Bearer {key}', 'Content-Type': 'application/json'},
-            json={'model': model, 'messages': messages, 'tools': TOOLS,
-                  'tool_choice': 'auto', 'temperature': 0.2, 'max_tokens': 600},
-            timeout=40,
-        )
-    except requests.RequestException as exc:
-        logger.error(f'[assistant] error de red: {exc}')
-        raise AssistantError('No pude conectar con la IA. Intenta de nuevo en un momento.')
+    payload = {'model': model, 'messages': messages, 'tools': TOOLS,
+               'tool_choice': 'auto', 'temperature': 0.2, 'max_tokens': 600}
+    headers = {'Authorization': f'Bearer {key}', 'Content-Type': 'application/json'}
+
+    r = None
+    for attempt in (1, 2):                      # 1 intento + 1 reintento automático
+        last = attempt == 2
+        try:
+            r = requests.post(f'{base}/chat/completions', headers=headers, json=payload,
+                              timeout=LLM_TIMEOUT)
+        except requests.RequestException as exc:
+            logger.error(f'[assistant] error de red (intento {attempt}): {exc}')
+            if last:
+                raise AssistantError('No pude conectar con la IA. Intenta de nuevo en un momento.')
+            time.sleep(LLM_RETRY_DELAY)
+            continue
+        if r.status_code in LLM_RETRY_STATUS and not last:
+            logger.warning(f'[assistant] HTTP {r.status_code} temporal, reintentando…')
+            time.sleep(LLM_RETRY_DELAY)
+            continue
+        break
+
     if r.status_code == 429:
         raise AssistantError('Se agotó el cupo gratuito de la IA por ahora. Intenta más tarde.')
+    if r.status_code in LLM_RETRY_STATUS:
+        logger.error(f'[assistant] HTTP {r.status_code} tras reintento: {r.text[:300]}')
+        raise AssistantError('La IA está saturada en este momento. Intenta de nuevo en un minuto.')
+    if r.status_code in (401, 403):
+        logger.error(f'[assistant] HTTP {r.status_code}: {r.text[:300]}')
+        raise AssistantError('La IA rechazó la llave. Revisa AI_API_KEY.')
+    if r.status_code == 404:
+        logger.error(f'[assistant] HTTP 404: {r.text[:300]}')
+        raise AssistantError('No encontré el modelo de IA. Revisa AI_MODEL.')
     if r.status_code >= 400:
         logger.error(f'[assistant] HTTP {r.status_code}: {r.text[:300]}')
-        raise AssistantError(f'La IA respondió con error ({r.status_code}). Revisa AI_MODEL / AI_API_KEY.')
+        raise AssistantError(f'La IA respondió con error ({r.status_code}). Intenta de nuevo.')
     try:
         return r.json()['choices'][0]['message']
     except (KeyError, IndexError, ValueError):
@@ -232,11 +264,35 @@ def _t_resumen_hoy(a, user):
     return {'pagos': len(pagos), 'ingresos': _money(sum(p.amount for p in pagos)), 'asistencias': asist}
 
 
+def _t_ultimos_pagos(a, user):
+    if user.get('role') != 'admin':
+        return {'error': 'Solo el administrador puede ver los pagos.'}
+    try:
+        limit = max(1, min(int(a.get('limite') or 5), MAX_PAYMENTS_LIST))
+    except (TypeError, ValueError):
+        limit = 5
+    # amount > 0 excluye los pagos "espejo" del Plan Pareja/Familiar (no cobran)
+    q = Payment.query.filter(Payment.is_deleted == False, Payment.amount > 0)
+    if a.get('client_id'):
+        q = q.filter(Payment.client_id == a.get('client_id'))
+    rows = q.order_by(Payment.payment_date.desc(), Payment.id.desc()).limit(limit).all()
+    return {'total': len(rows), 'pagos': [{
+        'recibo': p.id,
+        'cliente': p.client.full_name if p.client else None,
+        'plan': p.membership.name if p.membership else None,
+        'monto': _money(p.amount),
+        'metodo': p.payment_method,
+        'fecha_pago': p.payment_date.isoformat() if p.payment_date else None,
+        'vence': p.end_date.isoformat() if p.end_date else None,
+    } for p in rows]}
+
+
 READ_HANDLERS = {
     'buscar_cliente': _t_buscar_cliente,
     'listar_planes': _t_listar_planes,
     'estado_cliente': _t_estado_cliente,
     'resumen_hoy': _t_resumen_hoy,
+    'ultimos_pagos': _t_ultimos_pagos,
 }
 
 

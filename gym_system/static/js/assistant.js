@@ -27,31 +27,40 @@
 
   // ── DOM ──────────────────────────────────────────────
   var fab = el('button'); fab.id = 'bf-ai-fab'; fab.title = 'Asistente IA'; fab.setAttribute('aria-label', 'Abrir asistente');
-  var fabImg = el('span', 'bf-face'); setMascot(fabImg); fab.appendChild(fabImg); fab.appendChild(el('span', 'bf-badge', 'IA'));
+  var fabImg = el('span', 'bf-face'); setMascot(fabImg); var badge = el('span', 'bf-badge', 'IA'); fab.appendChild(fabImg); fab.appendChild(badge);
 
   var panel = el('div'); panel.id = 'bf-ai-panel';
   var head = el('div', 'bf-head');
   var av = el('div', 'bf-av'); setMascot(av);
-  var ht = el('div'); ht.appendChild(el('b', '', 'Coach IA')); ht.appendChild(el('small', '', 'Pídeme registrar clientes, pagos o asistencia'));
-  var closeBtn = el('button', '', '×'); closeBtn.setAttribute('aria-label', 'Cerrar');
-  head.appendChild(av); head.appendChild(ht); head.appendChild(closeBtn);
+  var ht = el('div'); ht.appendChild(el('b', '', 'Coach IA')); ht.appendChild(el('small', '', 'Clientes, pagos, asistencia y música 🎵'));
+  var musicBtn = el('button', 'bf-mbtn', '🎵'); musicBtn.type = 'button'; musicBtn.title = 'Música'; musicBtn.setAttribute('aria-label', 'Música');
+  var closeBtn = el('button', 'bf-x', '×'); closeBtn.setAttribute('aria-label', 'Cerrar');
+  head.appendChild(av); head.appendChild(ht); head.appendChild(musicBtn); head.appendChild(closeBtn);
+
+  // Reproductor: barra "sonando ahora" + lista de canciones (se abre con 🎵)
+  var np = el('div', 'bf-np');
+  var npTitle = el('span', 'bf-np-t', '');
+  function mbtn(txt, label) { var b = el('button', '', txt); b.type = 'button'; b.title = label; b.setAttribute('aria-label', label); return b; }
+  var bPrev = mbtn('⏮', 'Anterior'), bPlay = mbtn('▶', 'Reproducir / pausar'), bNext = mbtn('⏭', 'Siguiente'), bStop = mbtn('⏹', 'Detener');
+  np.appendChild(npTitle); [bPrev, bPlay, bNext, bStop].forEach(function (b) { np.appendChild(b); });
+  var mlist = el('div', 'bf-mlist');
 
   var msgs = el('div', 'bf-msgs');
   var chips = el('div', 'bf-chips');
-  ['Registra un cliente', 'Registrar asistencia', '¿Qué planes hay?'].forEach(function (t) {
+  ['Registra un cliente', 'Registrar asistencia', '¿Qué planes hay?', '🎵 Pon música'].forEach(function (t) {
     var c = el('span', '', t); c.onclick = function () { input.value = t; send(); }; chips.appendChild(c);
   });
   var form = el('form', 'bf-form');
   var input = el('input'); input.placeholder = 'Ej: registra a Juan Pérez, cc 123456…'; input.maxLength = 500; input.autocomplete = 'off';
   var sendBtn = el('button', '', '➤'); sendBtn.type = 'submit';
   form.appendChild(input); form.appendChild(sendBtn);
-  panel.appendChild(head); panel.appendChild(msgs); panel.appendChild(chips); panel.appendChild(form);
+  panel.appendChild(head); panel.appendChild(np); panel.appendChild(mlist); panel.appendChild(msgs); panel.appendChild(chips); panel.appendChild(form);
   document.body.appendChild(fab); document.body.appendChild(panel);
 
   function scroll() { msgs.scrollTop = msgs.scrollHeight; }
   function bubble(text, cls) { var m = el('div', 'bf-m ' + cls, text); msgs.appendChild(m); scroll(); return m; }
 
-  bubble('¡Hola! Soy tu coach IA 💪 Dime qué necesitas. Ejemplo: "registra a María López, cédula 1002003004" o "María pagó el plan mensual en Nequi".', 'bot');
+  bubble('¡Hola! Soy tu coach IA 💪 Dime qué necesitas. Ejemplo: "registra a María López, cédula 1002003004" o "María pagó el plan mensual en Nequi". También puedo poner música: "pon Brickell" o "pon música aleatoria" 🎵', 'bot');
 
   function toggle(open) {
     var o = open === undefined ? !panel.classList.contains('open') : open;
@@ -60,6 +69,159 @@
   }
   fab.onclick = function () { toggle(); };
   closeBtn.onclick = function () { toggle(false); };
+
+
+  // ── Reproductor de música ────────────────────────────
+  var SILENT = 'data:audio/wav;base64,UklGRkQDAABXQVZFZm10IBAAAAABAAEAQB8AAEAfAAABAAgAZGF0YSADAACAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgA==';
+  var STORE = 'bf_music';
+  var audio = new Audio(); audio.preload = 'none';
+  var songs = [], byId = {}, queue = [], pos = -1, unlocked = false, lastSave = 0;
+  audio.volume = 0.8;
+
+  function store(obj) { try { localStorage.setItem(STORE, JSON.stringify(obj)); } catch (e) {} }
+  function readStore() { try { return JSON.parse(localStorage.getItem(STORE) || 'null'); } catch (e) { return null; } }
+  function saveState() {
+    store({ queue: queue, pos: pos, time: audio.currentTime || 0, playing: !audio.paused, volume: audio.volume });
+  }
+  function isSilent() { return audio.src.indexOf('data:') === 0; }
+
+  function loadSongs(cb) {
+    if (songs.length) { if (cb) cb(); return; }
+    fetch('/assistant/music', { credentials: 'same-origin' }).then(function (r) { return r.json(); }).then(function (d) {
+      songs = d.songs || []; byId = {};
+      songs.forEach(function (s) { byId[s.id] = s; });
+      renderList();
+      if (cb) cb();
+    }).catch(function () { if (cb) cb(); });
+  }
+
+  function renderList() {
+    mlist.innerHTML = '';
+    if (!songs.length) { mlist.appendChild(el('div', 'bf-mempty', 'No hay canciones cargadas.')); return; }
+    var cur = queue[pos];
+    songs.forEach(function (s) {
+      var row = el('div', 'bf-mrow' + (s.id === cur ? ' on' : ''), (s.id === cur ? '♪ ' : '') + s.title);
+      row.onclick = function () { playQueue(songs.map(function (x) { return x.id; }), false, s.id); };
+      mlist.appendChild(row);
+    });
+  }
+
+  function refreshUi() {
+    var id = queue[pos], playing = !audio.paused && !audio.ended;
+    np.classList.toggle('on', !!id);
+    npTitle.textContent = id && byId[id] ? byId[id].title : '';
+    bPlay.textContent = playing ? '⏸' : '▶';
+    fab.classList.toggle('bf-playing', playing);
+    badge.textContent = playing ? '♪' : 'IA';
+    renderList();
+  }
+
+  function playCurrent() {
+    var id = queue[pos];
+    if (!id) return;
+    audio.src = '/assistant/music/' + encodeURIComponent(id);
+    var pr = audio.play();
+    if (pr && pr.catch) pr.catch(function () { refreshUi(); });   // el navegador bloqueó el autoplay: queda listo para ▶
+    refreshUi();
+  }
+
+  function playQueue(ids, shuffle, startId) {
+    ids = ids.filter(function (i) { return byId[i]; });
+    if (!ids.length) return;
+    if (shuffle) {
+      for (var i = ids.length - 1; i > 0; i--) { var j = Math.floor(Math.random() * (i + 1)); var t = ids[i]; ids[i] = ids[j]; ids[j] = t; }
+    }
+    queue = ids; pos = startId ? Math.max(0, ids.indexOf(startId)) : 0;
+    playCurrent();
+  }
+
+  function nextTrack() {
+    if (!queue.length) return;
+    if (pos + 1 < queue.length) pos++;
+    else if (queue.length > 1) pos = 0;
+    else { audio.pause(); audio.currentTime = 0; refreshUi(); return; }
+    playCurrent();
+  }
+  function prevTrack() {
+    if (!queue.length) return;
+    if (audio.currentTime > 3) { audio.currentTime = 0; return; }
+    pos = pos > 0 ? pos - 1 : queue.length - 1;
+    playCurrent();
+  }
+  function togglePlay() {
+    if (!queue.length) { loadSongs(function () { playQueue(songs.map(function (s) { return s.id; }), true); }); return; }
+    if (audio.paused) { if (!audio.src || isSilent()) playCurrent(); else audio.play().catch(function () {}); }
+    else audio.pause();
+  }
+  function stopMusic() { audio.pause(); audio.removeAttribute('src'); audio.load(); queue = []; pos = -1; store(null); refreshUi(); }
+  function setVolume(delta) { audio.volume = Math.max(0, Math.min(1, audio.volume + delta)); saveState(); }
+
+  // Desbloquea el audio con un gesto del usuario (Safari/Chrome móvil bloquean play() tras una espera de red)
+  function unlock() {
+    if (unlocked || !audio.paused) { unlocked = true; return; }
+    unlocked = true;
+    audio.src = SILENT;
+    var pr = audio.play();
+    if (pr && pr.catch) pr.catch(function () {});
+  }
+
+  function runMusic(cmds) {
+    loadSongs(function () {
+      (cmds || []).forEach(function (c) {
+        switch (c.type) {
+          case 'play': playQueue((c.queue || []).slice(), !!c.shuffle); break;
+          case 'pausar': audio.pause(); break;
+          case 'reanudar': togglePlayIfPaused(); break;
+          case 'siguiente': nextTrack(); break;
+          case 'anterior': prevTrack(); break;
+          case 'detener': stopMusic(); break;
+          case 'subir_volumen': setVolume(0.15); break;
+          case 'bajar_volumen': setVolume(-0.15); break;
+        }
+      });
+    });
+  }
+  function togglePlayIfPaused() { if (audio.paused) togglePlay(); }
+
+  audio.addEventListener('ended', function () { if (!isSilent()) nextTrack(); });
+  audio.addEventListener('play', function () { if (!isSilent()) { refreshUi(); saveState(); } });
+  audio.addEventListener('pause', function () { if (!isSilent()) { refreshUi(); saveState(); } });
+  audio.addEventListener('error', function () {
+    if (isSilent() || !audio.src) return;
+    bubble('⚠️ No pude reproducir esa canción.', 'bot err');
+    if (queue.length > 1) nextTrack();
+  });
+  audio.addEventListener('timeupdate', function () {
+    var now = Date.now();
+    if (!isSilent() && now - lastSave > 2000) { lastSave = now; saveState(); }
+  });
+
+  bPrev.onclick = prevTrack; bNext.onclick = nextTrack; bStop.onclick = stopMusic; bPlay.onclick = togglePlay;
+  musicBtn.onclick = function () {
+    unlock();
+    var open = !mlist.classList.contains('open');
+    mlist.classList.toggle('open', open);
+    if (open) loadSongs();
+  };
+
+  // La app recarga la página al navegar: retomamos donde se quedó la música (si el navegador lo permite)
+  (function restore() {
+    var st = readStore();
+    if (!st || !st.queue || !st.queue.length) return;
+    loadSongs(function () {
+      var ids = st.queue.filter(function (i) { return byId[i]; });
+      if (!ids.length || !byId[st.queue[st.pos]]) return;
+      queue = st.queue; pos = st.pos;
+      if (typeof st.volume === 'number') audio.volume = st.volume;
+      audio.src = '/assistant/music/' + encodeURIComponent(queue[pos]);
+      audio.addEventListener('loadedmetadata', function once() {
+        audio.removeEventListener('loadedmetadata', once);
+        try { audio.currentTime = st.time || 0; } catch (e) {}
+      });
+      refreshUi();
+      if (st.playing) { var pr = audio.play(); if (pr && pr.catch) pr.catch(function () { refreshUi(); }); }
+    });
+  })();
 
   // ── Red ──────────────────────────────────────────────
   function post(url, body) {
@@ -96,6 +258,7 @@
   function send() {
     var text = input.value.trim();
     if (!text || busy) return;
+    unlock();
     input.value = ''; chips.style.display = 'none';
     bubble(text, 'me');
     history.push({ role: 'user', content: text });
@@ -106,6 +269,7 @@
       bubble(r.reply, r.reply.indexOf('⚠️') === 0 ? 'bot err' : 'bot');
       history.push({ role: 'assistant', content: r.reply });
       (r.actions || []).forEach(renderCard);
+      if (r.music && r.music.length) runMusic(r.music);
     }).catch(function (e) {
       typing.remove(); bubble(e.message || 'Error de conexión.', 'bot err');
     }).then(function () { setBusy(false); input.focus(); });

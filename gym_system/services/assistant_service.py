@@ -23,9 +23,11 @@ Variables de entorno:
 import json
 import logging
 import os
+import re
 import secrets
 import threading
 import time
+import unicodedata
 from datetime import datetime, timedelta
 
 import pytz
@@ -54,6 +56,8 @@ LLM_RETRY_DELAY = 1.5                      # segundos antes del único reintento
 MAX_PAYMENTS_LIST = 20
 PAYMENT_METHODS = ['efectivo', 'transferencia', 'nequi', 'daviplata', 'tarjeta', 'datafono']
 DOC_TYPES = ['CC', 'TI', 'CE', 'PAS']
+MUSIC_DIR = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), 'music')
+MUSIC_ACTIONS = ['pausar', 'reanudar', 'siguiente', 'anterior', 'detener', 'subir_volumen', 'bajar_volumen']
 
 
 # ──────────────────────────────────────────────────────────────────────
@@ -82,12 +86,26 @@ TOOLS = [
           {'client_id': {'type': 'integer'}}, ['client_id']),
     _tool('resumen_hoy',
           'Resumen de hoy: pagos, ingresos y asistencias. Solo para administradores.', {}, []),
-    _tool('ultimos_pagos',
-          'Lista los últimos pagos registrados (cliente, plan, monto, método y fecha). Úsala para '
-          '"último pago", "pagos recientes" o "cuánto pagó X". Si se pasa client_id, filtra por '
-          'ese cliente (búscalo antes con buscar_cliente). Solo para administradores.',
-          {'limite': {'type': 'integer', 'description': 'Cuántos pagos mostrar (1-20, por defecto 5)'},
-           'client_id': {'type': 'integer', 'description': 'Opcional: solo pagos de este cliente'}}, []),
+    _tool('buscar_pagos',
+          'Busca pagos registrados con filtros opcionales y combinables: cliente, rango de fechas, '
+          'método, plan, monto o número de recibo. Sin filtros devuelve los más recientes, así que '
+          'sirve también para "último pago". Devuelve el total encontrado y la suma. '
+          'Incluye los pagos "espejo" de Plan Pareja/Familiar (monto $0, el cobro está en el pago del '
+          'titular) marcados con tipo=espejo. Solo para administradores.',
+          {'cliente': {'type': 'string', 'description': 'Nombre o documento del cliente (parcial sirve)'},
+           'client_id': {'type': 'integer', 'description': 'Id exacto del cliente (si ya lo tienes)'},
+           'recibo': {'type': 'integer', 'description': 'Número de recibo / id del pago'},
+           'fecha_desde': {'type': 'string', 'description': 'YYYY-MM-DD, fecha de pago desde (inclusive)'},
+           'fecha_hasta': {'type': 'string', 'description': 'YYYY-MM-DD, fecha de pago hasta (inclusive)'},
+           'metodo_pago': {'type': 'string', 'enum': PAYMENT_METHODS},
+           'membership_id': {'type': 'integer', 'description': 'Id del plan (usa listar_planes)'},
+           'monto_min': {'type': 'number'},
+           'monto_max': {'type': 'number'},
+           'incluir_espejo': {'type': 'boolean',
+                              'description': 'Incluir pagos espejo de Pareja/Familiar (por defecto true)'},
+           'orden': {'type': 'string', 'enum': ['recientes', 'antiguos', 'monto_mayor'],
+                     'description': 'Por defecto recientes'},
+           'limite': {'type': 'integer', 'description': 'Cuántos mostrar (1-20, por defecto 5)'}}, []),
     _tool('registrar_cliente',
           'Prepara el registro de un cliente nuevo (requiere confirmación del usuario). '
           'Nombre y documento son obligatorios: si falta el documento, PREGÚNTALO, no lo inventes.',
@@ -114,6 +132,18 @@ TOOLS = [
     _tool('registrar_asistencia',
           'Prepara el registro de asistencia de hoy para un cliente (requiere confirmación).',
           {'client_id': {'type': 'integer'}}, ['client_id']),
+    _tool('listar_canciones',
+          'Lista las canciones disponibles para reproducir en el asistente.', {}, []),
+    _tool('reproducir_musica',
+          'Reproduce música en el navegador del usuario (no necesita confirmación). Con \'consulta\' busca '
+          'por título o artista (ej. "Brickell", "Yandel"); si varias coinciden, suenan en cola. '
+          'Sin consulta, o con aleatorio=true, reproduce en orden aleatorio.',
+          {'consulta': {'type': 'string', 'description': 'Título o artista (parcial sirve)'},
+           'aleatorio': {'type': 'boolean', 'description': 'Reproducir en orden aleatorio'}}, []),
+    _tool('controlar_musica',
+          'Controla la música que está sonando: pausar, reanudar, siguiente, anterior, detener, '
+          'subir_volumen o bajar_volumen.',
+          {'accion': {'type': 'string', 'enum': MUSIC_ACTIONS}}, ['accion']),
 ]
 
 WRITE_TOOLS = {'registrar_cliente', 'registrar_pago', 'registrar_asistencia'}
@@ -135,7 +165,10 @@ def _system_prompt():
         '- Las acciones de escritura quedan pendientes: después de llamarlas, dile al usuario '
         'que revise el resumen y pulse "Confirmar". No digas que ya se hizo.\n'
         '- Plan Familiar no se puede registrar por aquí: indica que use el formulario de pagos.\n'
-        '- Para "último pago" o pagos recientes usa ultimos_pagos (si es de un cliente, búscalo antes con buscar_cliente).\n'
+        '- Para "último pago" o pagos recientes usa buscar_pagos (filtra por cliente, fechas, método, plan, monto o recibo según lo que pidan; no inventes filtros).\n'
+        '- Música: puedes reproducir las canciones de la carpeta del gimnasio con reproducir_musica y '
+        'controlarla con controlar_musica (pausar, siguiente, volumen...). Si piden "música" sin especificar, '
+        'ponla aleatoria. Si no sabes qué canciones hay, usa listar_canciones. No necesitan confirmación.\n'
         '- Si piden algo que no puedes hacer (borrar, editar, reportes complejos), dilo y sugiere la pantalla correspondiente.'
     )
 
@@ -264,27 +297,84 @@ def _t_resumen_hoy(a, user):
     return {'pagos': len(pagos), 'ingresos': _money(sum(p.amount for p in pagos)), 'asistencias': asist}
 
 
-def _t_ultimos_pagos(a, user):
+def _parse_date(v):
+    try:
+        return datetime.strptime(str(v).strip(), '%Y-%m-%d').date()
+    except (TypeError, ValueError):
+        return None
+
+
+def _t_buscar_pagos(a, user):
     if user.get('role') != 'admin':
         return {'error': 'Solo el administrador puede ver los pagos.'}
     try:
         limit = max(1, min(int(a.get('limite') or 5), MAX_PAYMENTS_LIST))
     except (TypeError, ValueError):
         limit = 5
-    # amount > 0 excluye los pagos "espejo" del Plan Pareja/Familiar (no cobran)
-    q = Payment.query.filter(Payment.is_deleted == False, Payment.amount > 0)
+
+    q = Payment.query.filter(Payment.is_deleted == False)
+    # Los pagos "espejo" (Plan Pareja/Familiar) tienen monto 0: se muestran salvo que pidan ocultarlos
+    if a.get('incluir_espejo') is False:
+        q = q.filter(Payment.amount > 0)
+
+    if a.get('recibo'):
+        q = q.filter(Payment.id == a.get('recibo'))
     if a.get('client_id'):
         q = q.filter(Payment.client_id == a.get('client_id'))
-    rows = q.order_by(Payment.payment_date.desc(), Payment.id.desc()).limit(limit).all()
-    return {'total': len(rows), 'pagos': [{
-        'recibo': p.id,
-        'cliente': p.client.full_name if p.client else None,
-        'plan': p.membership.name if p.membership else None,
-        'monto': _money(p.amount),
-        'metodo': p.payment_method,
-        'fecha_pago': p.payment_date.isoformat() if p.payment_date else None,
-        'vence': p.end_date.isoformat() if p.end_date else None,
-    } for p in rows]}
+    texto = (a.get('cliente') or '').strip()
+    if texto:
+        if len(texto) < 2:
+            return {'error': 'El nombre o documento del cliente es muy corto.'}
+        q = q.join(Client, Payment.client_id == Client.id).filter(
+            db.or_(Client.full_name.ilike(f'%{texto}%'), Client.document_number.ilike(f'%{texto}%')))
+    for campo, op in (('fecha_desde', '>='), ('fecha_hasta', '<=')):
+        if a.get(campo):
+            d = _parse_date(a.get(campo))
+            if not d:
+                return {'error': f'{campo} inválida (usa AAAA-MM-DD).'}
+            q = q.filter(Payment.payment_date >= d if op == '>=' else Payment.payment_date <= d)
+    if a.get('metodo_pago'):
+        # el método puede ser compuesto (pago dividido), por eso "contiene"
+        q = q.filter(Payment.payment_method.ilike(f'%{str(a.get("metodo_pago")).lower()}%'))
+    if a.get('membership_id'):
+        q = q.filter(Payment.membership_id == a.get('membership_id'))
+    try:
+        if a.get('monto_min') is not None:
+            q = q.filter(Payment.amount >= float(a.get('monto_min')))
+        if a.get('monto_max') is not None:
+            q = q.filter(Payment.amount <= float(a.get('monto_max')))
+    except (TypeError, ValueError):
+        return {'error': 'Monto inválido.'}
+
+    total = q.count()
+    suma = q.with_entities(db.func.coalesce(db.func.sum(Payment.amount), 0)).scalar() or 0
+    orden = a.get('orden')
+    if orden == 'antiguos':
+        q = q.order_by(Payment.payment_date.asc(), Payment.id.asc())
+    elif orden == 'monto_mayor':
+        q = q.order_by(Payment.amount.desc(), Payment.id.desc())
+    else:
+        q = q.order_by(Payment.payment_date.desc(), Payment.id.desc())
+    rows = q.limit(limit).all()
+
+    def _row(p):
+        es_espejo = (p.amount or 0) == 0 and p.partner_client_id is not None
+        row = {
+            'recibo': p.id,
+            'tipo': 'espejo' if es_espejo else 'pago',
+            'cliente': p.client.full_name if p.client else None,
+            'plan': p.membership.name if p.membership else None,
+            'monto': _money(p.amount),
+            'metodo': p.payment_method,
+            'fecha_pago': p.payment_date.isoformat() if p.payment_date else None,
+            'vence': p.end_date.isoformat() if p.end_date else None,
+        }
+        if es_espejo:
+            row['pagado_por'] = p.partner.full_name if p.partner else None
+        return row
+
+    return {'total_encontrados': total, 'suma_total': _money(suma), 'mostrando': len(rows),
+            'pagos': [_row(p) for p in rows]}
 
 
 READ_HANDLERS = {
@@ -292,7 +382,81 @@ READ_HANDLERS = {
     'listar_planes': _t_listar_planes,
     'estado_cliente': _t_estado_cliente,
     'resumen_hoy': _t_resumen_hoy,
-    'ultimos_pagos': _t_ultimos_pagos,
+    'buscar_pagos': _t_buscar_pagos,
+}
+
+
+# ──────────────────────────────────────────────────────────────────────
+# Música (la reproducción ocurre en el navegador; aquí solo se decide QUÉ sonar)
+# ──────────────────────────────────────────────────────────────────────
+def _norm(text):
+    text = unicodedata.normalize('NFKD', str(text or '')).encode('ascii', 'ignore').decode()
+    return re.sub(r'[^a-z0-9]+', ' ', text.lower()).strip()
+
+
+def list_songs():
+    """Canciones de la carpeta music/ (basta con copiar un .mp3 ahí para que aparezca)."""
+    songs = []
+    if not os.path.isdir(MUSIC_DIR):
+        return songs
+    for fname in sorted(os.listdir(MUSIC_DIR), key=_norm):
+        if not fname.lower().endswith(('.mp3', '.m4a', '.ogg', '.wav')):
+            continue
+        title = os.path.splitext(fname)[0]
+        songs.append({'id': _norm(title).replace(' ', '-'), 'title': title, 'file': fname,
+                      '_key': _norm(title)})
+    return songs
+
+
+def song_file(song_id):
+    """Ruta del archivo a partir del id (el cliente nunca manda nombres de archivo)."""
+    for s in list_songs():
+        if s['id'] == song_id:
+            return os.path.join(MUSIC_DIR, s['file']), s['file']
+    return None, None
+
+
+def _public(song):
+    return {'id': song['id'], 'title': song['title']}
+
+
+def _t_listar_canciones(a, user, commands):
+    songs = list_songs()
+    return {'total': len(songs), 'canciones': [s['title'] for s in songs]}
+
+
+def _t_reproducir_musica(a, user, commands):
+    songs = list_songs()
+    if not songs:
+        return {'error': 'No hay canciones cargadas en el sistema.'}
+    q = _norm(a.get('consulta'))
+    if q:
+        tokens = q.split()
+        found = [s for s in songs if all(t in s['_key'] for t in tokens)]
+        if not found:
+            return {'error': 'No encontré esa canción.', 'disponibles': [s['title'] for s in songs]}
+    else:
+        found = songs
+    shuffle = bool(a.get('aleatorio')) or not q
+    commands.append({'type': 'play', 'queue': [s['id'] for s in found],
+                     'shuffle': shuffle and len(found) > 1})
+    if shuffle and len(found) > 1:
+        return {'estado': 'reproduciendo_aleatorio', 'canciones_en_cola': len(found)}
+    return {'estado': 'reproduciendo', 'cancion': found[0]['title'], 'en_cola': [s['title'] for s in found[1:]]}
+
+
+def _t_controlar_musica(a, user, commands):
+    action = a.get('accion')
+    if action not in MUSIC_ACTIONS:
+        return {'error': f'Acción inválida. Opciones: {", ".join(MUSIC_ACTIONS)}.'}
+    commands.append({'type': action})
+    return {'estado': 'ok', 'accion': action}
+
+
+MUSIC_HANDLERS = {
+    'listar_canciones': _t_listar_canciones,
+    'reproducir_musica': _t_reproducir_musica,
+    'controlar_musica': _t_controlar_musica,
 }
 
 
@@ -502,16 +666,17 @@ def _clean_history(history):
 
 
 def chat(history, user):
-    """Devuelve {'reply': str, 'actions': [{token,title,lines}]}."""
+    """Devuelve {'reply': str, 'actions': [{token,title,lines}], 'music': [comandos para el reproductor]}."""
     messages = [{'role': 'system', 'content': _system_prompt()}] + _clean_history(history)
     actions = []
+    music = []
 
     for _ in range(MAX_TOOL_ROUNDS):
         msg = _call_llm(messages)
         calls = msg.get('tool_calls') or []
         if not calls:
             reply = (msg.get('content') or '').strip() or 'No entendí, ¿puedes repetirlo?'
-            return {'reply': reply, 'actions': actions}
+            return {'reply': reply, 'actions': actions, 'music': music}
 
         messages.append({'role': 'assistant', 'content': msg.get('content') or '', 'tool_calls': calls})
         for call in calls:
@@ -523,6 +688,8 @@ def chat(history, user):
 
             if name in READ_HANDLERS:
                 result = READ_HANDLERS[name](args, user)
+            elif name in MUSIC_HANDLERS:
+                result = MUSIC_HANDLERS[name](args, user, music)
             elif name in PREPARERS:
                 kind, prep = PREPARERS[name]
                 prepared, err = prep(args)
@@ -539,4 +706,4 @@ def chat(history, user):
                              'content': json.dumps(result, ensure_ascii=False, default=str)})
 
     return {'reply': 'Necesito un poco más de detalle para continuar. ¿Qué quieres hacer exactamente?',
-            'actions': actions}
+            'actions': actions, 'music': music}

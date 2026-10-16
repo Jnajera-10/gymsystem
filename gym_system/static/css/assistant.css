@@ -1,4 +1,4 @@
-/* ── Asistente IA flotante ─────────────────────────────── */
+/* ── Salo (asistente flotante) ─────────────────────────────── */
 #bf-ai-fab{position:fixed;right:20px;bottom:20px;width:68px;height:68px;border:0;border-radius:50%;
   background:#0d0d0d;box-shadow:0 0 0 3px #22c55e,0 6px 20px rgba(0,0,0,.4);cursor:pointer;
   z-index:2000;padding:0;transition:transform .2s;animation:bf-bob 3s ease-in-out infinite}

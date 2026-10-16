@@ -1,4 +1,4 @@
-/* Asistente IA flotante (Body-Fit) */
+/* Salo, el asistente flotante (Body-Fit) */
 (function () {
   'use strict';
   var history = [];
@@ -12,7 +12,7 @@
     box.innerHTML = FACE;
     if (!CUSTOM_IMG) return;
     var img = new Image();
-    img.alt = 'Coach IA';
+    img.alt = 'Salo';
     img.style.cssText = 'width:100%;height:100%;object-fit:cover;border-radius:50%;display:block';
     img.onload = function () { box.innerHTML = ''; box.appendChild(img); };
     img.src = CUSTOM_IMG;
@@ -26,13 +26,13 @@
   }
 
   // ── DOM ──────────────────────────────────────────────
-  var fab = el('button'); fab.id = 'bf-ai-fab'; fab.title = 'Asistente IA'; fab.setAttribute('aria-label', 'Abrir asistente');
+  var fab = el('button'); fab.id = 'bf-ai-fab'; fab.title = 'Salo'; fab.setAttribute('aria-label', 'Abrir chat con Salo');
   var fabImg = el('span', 'bf-face'); setMascot(fabImg); var badge = el('span', 'bf-badge', 'IA'); fab.appendChild(fabImg); fab.appendChild(badge);
 
   var panel = el('div'); panel.id = 'bf-ai-panel';
   var head = el('div', 'bf-head');
   var av = el('div', 'bf-av'); setMascot(av);
-  var ht = el('div'); ht.appendChild(el('b', '', 'Coach IA')); ht.appendChild(el('small', '', 'Clientes, pagos, asistencia y música 🎵'));
+  var ht = el('div'); ht.appendChild(el('b', '', 'Salo')); ht.appendChild(el('small', '', 'Clientes, pagos, asistencia y música 🎵'));
   var musicBtn = el('button', 'bf-mbtn', '🎵'); musicBtn.type = 'button'; musicBtn.title = 'Música'; musicBtn.setAttribute('aria-label', 'Música');
   var closeBtn = el('button', 'bf-x', '×'); closeBtn.setAttribute('aria-label', 'Cerrar');
   head.appendChild(av); head.appendChild(ht); head.appendChild(musicBtn); head.appendChild(closeBtn);
@@ -60,7 +60,7 @@
   function scroll() { msgs.scrollTop = msgs.scrollHeight; }
   function bubble(text, cls) { var m = el('div', 'bf-m ' + cls, text); msgs.appendChild(m); scroll(); return m; }
 
-  bubble('¡Hola! Soy tu coach IA 💪 Dime qué necesitas. Ejemplo: "registra a María López, cédula 1002003004" o "María pagó el plan mensual en Nequi". También puedo poner música: "pon Brickell" o "pon música aleatoria" 🎵', 'bot');
+  bubble('¡Qué más pues, parce! Soy Salo, el Ferxxo del gym 💚🔥 Dime qué necesitas. Ejemplo: "registra a María López, cédula 1002003004" o "María pagó el plan mensual en Nequi". También puedo poner música: "pon Brickell" o "pon música aleatoria" 🎵', 'bot');
 
   function toggle(open) {
     var o = open === undefined ? !panel.classList.contains('open') : open;
@@ -262,7 +262,7 @@
     input.value = ''; chips.style.display = 'none';
     bubble(text, 'me');
     history.push({ role: 'user', content: text });
-    var typing = el('div', 'bf-typing', 'Escribiendo…'); msgs.appendChild(typing); scroll();
+    var typing = el('div', 'bf-typing', 'Salo está en lo suyo…'); msgs.appendChild(typing); scroll();
     setBusy(true);
     post('/assistant/chat', { messages: history }).then(function (r) {
       typing.remove();

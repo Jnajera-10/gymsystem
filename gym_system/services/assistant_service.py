@@ -1,5 +1,5 @@
 """
-Asistente IA flotante.
+Salo: asistente flotante.
 
 Cómo funciona
 -------------
@@ -152,8 +152,16 @@ WRITE_TOOLS = {'registrar_cliente', 'registrar_pago', 'registrar_asistencia'}
 def _system_prompt():
     hoy = datetime.now(BOGOTA)
     return (
-        'Eres el asistente del sistema de gestión del gimnasio Body-Fit. Hablas en español, '
-        'breve y amable. Ayudas a recepción a registrar clientes, pagos de membresía y '
+        'Eres Salo, el asistente del sistema de gestión del gimnasio Body-Fit. Si te preguntan cómo te llamas, responde que te llamas Salo. Hablas en español, '
+        'breve y amable.\n'
+        'ESTILO (siempre, con toda la recepción): hablas como "el Ferxxo", con el parlache paisa de Medellín y '
+        'vibra de reggaetón: relajado, chévere y con buena energía. Usa expresiones como "parce", "mor", "qué más pues", '
+        '"de una", "bien chimba", "nea", "ferxxo", "con toda", "pilas". Tutea siempre y trata a la recepcionista con '
+        'respeto y camaradería, sin coqueteo ni nada subido de tono. Respuestas cortas, máximo 1-2 emojis (💚🔥💪🎵). '
+        'Eres Salo, un personaje: no digas que eres Feid ni inventes frases suyas, y no cites letras de canciones. '
+        'El estilo NUNCA cambia los datos: nombres, montos, fechas y ids deben ser exactos y claros, '
+        'y los errores o avisos importantes (membresía vencida, congelada, falta un dato) se dicen con claridad.\n'
+        'Ayudas a recepción a registrar clientes, pagos de membresía y '
         'asistencia, y a consultar estados.\n'
         f'Fecha de hoy: {hoy.strftime("%Y-%m-%d")} (zona Bogotá). Moneda: pesos colombianos (COP).\n'
         'Reglas:\n'
@@ -569,7 +577,7 @@ def _exec_create_client(d):
                document_number=d['document_number'], email=d.get('email'), phone=d.get('phone'))
     db.session.add(c)
     db.session.commit()
-    AuditService.log('create', 'clients', c.id, None, f'{c.full_name} (asistente IA)')
+    AuditService.log('create', 'clients', c.id, None, f'{c.full_name} (Salo)')
     if c.email:
         app = current_app._get_current_object()
         threading.Thread(target=_send_welcome_async, args=(app, c.id), daemon=True).start()
@@ -580,9 +588,9 @@ def _exec_create_payment(d):
     payment, partner_payment, error, familiar = PaymentService.register_payment(d)
     if error:
         return False, error
-    AuditService.log('create', 'payments', payment.id, None, f'{payment.amount} (asistente IA)')
+    AuditService.log('create', 'payments', payment.id, None, f'{payment.amount} (Salo)')
     if partner_payment:
-        AuditService.log('create', 'payments', partner_payment.id, None, 'Plan Pareja (espejo, asistente IA)')
+        AuditService.log('create', 'payments', partner_payment.id, None, 'Plan Pareja (espejo, Salo)')
     # Mismo aviso por Telegram/email que el formulario normal
     try:
         from controllers.payments_controller import _send_payment_email, _send_couple_email
@@ -613,7 +621,7 @@ def _exec_attendance(d):
     if Attendance.query.filter(Attendance.client_id == client.id,
                                db.func.date(Attendance.check_in) == today).first():
         return False, f'{client.full_name} ya tiene asistencia registrada hoy.'
-    AttendanceService.register(client.id, notes='Registrada con el asistente IA')
+    AttendanceService.register(client.id, notes='Registrada con Salo')
     return True, f'✅ Asistencia registrada para {client.full_name}.'
 
 

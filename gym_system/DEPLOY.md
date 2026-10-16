@@ -124,7 +124,7 @@ Render redespliega automáticamente.
 **La app no carga (timeout)**
 → Configura UptimeRobot (Paso 5)
 
-## Asistente IA (opcional)
+## Salo, el asistente IA (opcional)
 Variables de entorno en Render:
 - `AI_API_KEY`  → tu llave (Gemini, Groq, OpenRouter u OpenAI)
 - `AI_BASE_URL` → por defecto Gemini: `https://generativelanguage.googleapis.com/v1beta/openai`

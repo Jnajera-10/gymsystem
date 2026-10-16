@@ -9,6 +9,7 @@
     <link rel="stylesheet" href="{{ url_for('static', filename='css/main.css') }}">
     <link rel="stylesheet" href="{{ url_for('static', filename='css/halloween.css') }}">
     <script src="{{ url_for('static', filename='js/halloween.js') }}"></script>
+    {% if session.get('user_id') %}<link rel="stylesheet" href="{{ url_for('static', filename='css/assistant.css') }}">{% endif %}
     {% block extra_css %}{% endblock %}
 </head>
 <body class="{% block body_class %}{% endblock %}">
@@ -30,6 +31,7 @@
     {% include 'layouts/footer.html' %}
     <script src="https://cdnjs.cloudflare.com/ajax/libs/bootstrap/5.3.2/js/bootstrap.bundle.min.js"></script>
     <script src="{{ url_for('static', filename='js/main.js') }}"></script>
+    {% if session.get('user_id') %}<script src="{{ url_for('static', filename='js/assistant.js') }}" defer></script>{% endif %}
     {% block extra_js %}{% endblock %}
 </body>
 </html>

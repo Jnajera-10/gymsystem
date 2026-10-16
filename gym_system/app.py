@@ -29,12 +29,13 @@ def create_app():
     from routes.delete_request_routes import dr_bp  # ← faltaba, causaba 404
     from routes.telegram_routes import telegram_bp
     from routes.face_routes import face_bp
+    from routes.assistant_routes import assistant_bp
 
     for bp in [auth_bp, user_bp, client_bp, membership_bp, payment_bp,
                attendance_bp, inventory_bp, sales_bp, dashboard_bp,
                reports_bp, notification_bp, settings_bp, backup_bp, audit_bp,
                health_bp, email_test_bp, profile_bp, expense_bp, dr_bp,
-               telegram_bp, face_bp]:
+               telegram_bp, face_bp, assistant_bp]:
         app.register_blueprint(bp)
 
     # ── Protección global: redirige al login si no hay sesión ───────────

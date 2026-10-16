@@ -123,3 +123,10 @@ Render redespliega automáticamente.
 
 **La app no carga (timeout)**
 → Configura UptimeRobot (Paso 5)
+
+## Asistente IA (opcional)
+Variables de entorno en Render:
+- `AI_API_KEY`  → tu llave (Gemini, Groq, OpenRouter u OpenAI)
+- `AI_BASE_URL` → por defecto Gemini: `https://generativelanguage.googleapis.com/v1beta/openai`
+  (Groq: `https://api.groq.com/openai/v1`)
+- `AI_MODEL`    → por defecto `gemini-2.0-flash` (Groq: `llama-3.3-70b-versatile`)

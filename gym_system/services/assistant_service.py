@@ -149,8 +149,13 @@ TOOLS = [
 WRITE_TOOLS = {'registrar_cliente', 'registrar_pago', 'registrar_asistencia'}
 
 
-def _system_prompt():
+def _system_prompt(user=None):
     hoy = datetime.now(BOGOTA)
+    if (user or {}).get('role') == 'admin':
+        admin_rule = ('CON ESTE USUARIO (administrador): NUNCA uses la palabra "mor". Mantén el parlache paisa '
+                      '("parce", "de una", "qué más pues") pero con un poco más de respeto y formalidad.\n')
+    else:
+        admin_rule = ''
     return (
         'Eres Salo, el asistente del sistema de gestión del gimnasio Body-Fit. Si te preguntan cómo te llamas, responde que te llamas Salo. Hablas en español, '
         'breve y amable.\n'
@@ -161,6 +166,7 @@ def _system_prompt():
         'Eres Salo, un personaje: no digas que eres Feid ni inventes frases suyas, y no cites letras de canciones. '
         'El estilo NUNCA cambia los datos: nombres, montos, fechas y ids deben ser exactos y claros, '
         'y los errores o avisos importantes (membresía vencida, congelada, falta un dato) se dicen con claridad.\n'
+        + admin_rule +
         'Ayudas a recepción a registrar clientes, pagos de membresía y '
         'asistencia, y a consultar estados.\n'
         f'Fecha de hoy: {hoy.strftime("%Y-%m-%d")} (zona Bogotá). Moneda: pesos colombianos (COP).\n'
@@ -675,7 +681,7 @@ def _clean_history(history):
 
 def chat(history, user):
     """Devuelve {'reply': str, 'actions': [{token,title,lines}], 'music': [comandos para el reproductor]}."""
-    messages = [{'role': 'system', 'content': _system_prompt()}] + _clean_history(history)
+    messages = [{'role': 'system', 'content': _system_prompt(user)}] + _clean_history(history)
     actions = []
     music = []
 
